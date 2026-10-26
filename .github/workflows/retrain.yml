@@ -1,0 +1,49 @@
+name: Scheduled retrain
+
+# Retrain on a schedule (and on demand) so the model never goes stale silently.
+# The run trains a challenger, evaluates it, and enforces the regression gate:
+# a model that is worse than the committed baseline fails the job instead of
+# shipping. The fresh model + reports are uploaded as a build artifact; wiring
+# the promotion/deploy step to your environment is the one piece left to you.
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"   # 03:00 UTC on the 1st of each month
+  workflow_dispatch: {}    # allow manual runs from the Actions tab
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Retrain, evaluate and register a challenger
+        env:
+          CHURNGUARD_TRACKING: "0"
+        run: python scripts/retrain.py
+
+      - name: Regression gate (fail if worse than the baseline)
+        env:
+          CHURNGUARD_TRACKING: "0"
+        run: python scripts/check_regression.py
+
+      - name: Upload the retrained model and reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: churnguard-model-${{ github.run_number }}
+          path: |
+            models/churnguard.joblib
+            reports/metrics.json
+            reports/model_card.md
+          if-no-files-found: error
+          retention-days: 90
