@@ -152,15 +152,18 @@ churnguard/
 │   ├── features.py        # feature engineering + ColumnTransformer
 │   ├── train.py           # CV selection → tuning → calibration
 │   ├── bundle.py          # the saved model artifact (model + threshold + SHAP background)
-│   ├── evaluate.py        # metrics, figures, business threshold, model card
+│   ├── evaluate.py        # metrics, figures, business threshold, model card, drift baseline
 │   ├── explain.py         # per-prediction SHAP explanations
 │   ├── predict.py         # inference + batch CSV CLI (shared by API)
+│   ├── monitor.py         # PSI data/prediction/performance drift monitoring
+│   ├── registry.py        # file-based model registry + champion/challenger
+│   ├── observability.py   # JSON logs, Prometheus metrics, rate limiter, API-key auth
 │   ├── tracking.py        # best-effort MLflow logging
 │   └── api.py             # FastAPI service (+ interactive demo page)
 ├── config/config.yaml     # all tunable settings
-├── tests/                 # pytest suite (data, features, training, explain, API, CLI)
-├── docs/ChurnGuard.pdf     # project dossier + interview Q&A (generated)
-├── scripts/               # make_dataset.py · download_data.py · make_docs_pdf.py
+├── tests/                 # pytest suite (data, features, train, explain, API, CLI, monitor, registry, obs.)
+├── docs/                   # DESIGN.md · RUNBOOK.md · adr/ (decision records) · ChurnGuard.pdf
+├── scripts/               # make_dataset · download_data · retrain · check_regression · loadtest · make_docs_pdf
 ├── Dockerfile · Makefile · pyproject.toml · requirements.txt · requirements.lock
 ├── .pre-commit-config.yaml
 └── .github/workflows/ci.yml
@@ -171,16 +174,17 @@ churnguard/
 ## Testing & quality
 
 ```bash
-make test        # 25 tests: generation, feature parity, training, SHAP, API, CLI
-make coverage    # tests + coverage report
+make test        # 43 tests: generation, feature parity, training, SHAP, API, CLI, drift, registry, observability
+make coverage    # tests + coverage report (~91%)
 make lint        # ruff
 make typecheck   # mypy
 pre-commit install   # run ruff + mypy automatically on every commit
 ```
 
 CI (GitHub Actions) runs **ruff + mypy + tests with coverage** on Python 3.10 and
-3.12, plus a smoke test that the full `train → evaluate` pipeline runs end to end
-and produces artifacts.
+3.12, a smoke test that the full `train → evaluate` pipeline runs end to end and
+produces artifacts, and a **model-regression gate** that fails the build if a new
+model regresses beyond tolerance vs. the committed baseline.
 
 ---
 
@@ -194,12 +198,45 @@ data, run `make data-real` (downloads the real CSV) and then `make train evaluat
 
 ---
 
-## Possible extensions
+## Production operations
 
-- A model registry + automated promotion on top of the MLflow runs.
-- Concept-drift monitoring on the live request stream (the `/stats` endpoint is a start).
+ChurnGuard is built to be *operated*, not just trained. See
+[`docs/DESIGN.md`](docs/DESIGN.md) for the system design, [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
+for incident response, and [`docs/adr/`](docs/adr/) for the decision records behind
+each choice.
+
+**Drift monitoring** — compare a live batch to the reference profile captured at
+evaluation time (Population Stability Index per feature + prediction + performance drift):
+
+```bash
+python -m churnguard.monitor recent_customers.csv     # or POST /monitor
+```
+
+**Model registry + champion/challenger** — every model is a versioned, immutable
+artifact with a lifecycle stage; a retrain is only promoted if it beats production:
+
+```bash
+python scripts/retrain.py        # train challenger, evaluate, auto-promote if better
+make registry                    # list versions and the production model
+```
+
+**Observability** — structured JSON logs with a request id, a Prometheus exposition,
+latency percentiles, per-IP rate limiting, and optional API-key auth:
+
+```bash
+curl -s localhost:8000/metrics/prometheus   # scrapeable counters + latency summary
+curl -s localhost:8000/stats                 # throughput + p50/p95/p99 latency
+make loadtest                                # serving benchmark -> reports/loadtest.md
+```
+
+**Quality gate** — `scripts/check_regression.py` runs in CI and fails the build if a
+new model regresses beyond `registry.regression_tolerance` vs. `reports/baseline_metrics.json`.
+
+### Possible extensions
+- Concept-drift *alerting* wired to a scheduled monitoring batch.
 - Online threshold re-tuning as the real cost ratio changes.
-- A small front-end dashboard over the batch scores.
+- A/B testing the retention actions the scores trigger, to measure realised ROI.
+- DVC data versioning and a small dashboard over the batch scores.
 
 ## License
 
