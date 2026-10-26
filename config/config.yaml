@@ -8,6 +8,9 @@ data:
   n_rows: 7043            # matches the real Telco Customer Churn dataset size
   test_size: 0.2
   target: Churn
+  # Public mirror of the real Telco Customer Churn dataset. `make data-real`
+  # downloads this to raw_path; otherwise a realistic synthetic set is generated.
+  real_url: https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv
 
 features:
   # Columns treated as numeric (scaled). Everything else categorical (one-hot).
@@ -22,13 +25,26 @@ features:
     - customerID
 
 model:
-  # Candidate estimators compared by cross-validated ROC-AUC. Best one is saved.
+  # Candidate estimators compared by cross-validated ROC-AUC. Best one is tuned.
   candidates:
     - logistic_regression
     - random_forest
     - gradient_boosting
   cv_folds: 5
   scoring: roc_auc
+  tuning:
+    enabled: true           # randomized hyper-parameter search on the winner
+    n_iter: 15
+  calibration:
+    enabled: true           # wrap the model so predicted probabilities are honest
+    method: isotonic        # isotonic | sigmoid
+
+threshold:
+  # The decision threshold is chosen to minimise business cost, not left at 0.5.
+  # A missed churner (false negative) typically costs more than a wasted
+  # retention offer (false positive).
+  cost_fn: 5
+  cost_fp: 1
 
 artifacts:
   model_path: models/churnguard.joblib

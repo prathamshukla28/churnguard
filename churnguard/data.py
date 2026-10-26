@@ -143,6 +143,33 @@ def ensure_dataset(cfg: Config | None = None) -> Path:
     return path
 
 
+def download_real_dataset(cfg: Config | None = None) -> Path:
+    """Download the genuine Telco Customer Churn CSV to the raw data path.
+
+    Overwrites any existing file at ``data.raw_path``. The real dataset shares
+    the exact schema produced by :func:`generate_dataset`, so the rest of the
+    pipeline is unchanged. Raises if the download fails or the schema is wrong.
+    """
+    import urllib.request
+
+    cfg = cfg or load_config()
+    url = cfg.get("data", "real_url")
+    path = cfg.path("data", "raw_path")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    urllib.request.urlretrieve(url, path)  # noqa: S310 - trusted, configured URL
+
+    # Sanity-check the schema before we trust it downstream.
+    head = pd.read_csv(path, nrows=5)
+    target = cfg.get("data", "target")
+    if target not in head.columns:
+        path.unlink(missing_ok=True)
+        raise ValueError(
+            f"Downloaded file has no '{target}' column; got {list(head.columns)}"
+        )
+    return path
+
+
 def load_dataset(cfg: Config | None = None) -> pd.DataFrame:
     """Load the raw dataset as a DataFrame (generating it if necessary)."""
     cfg = cfg or load_config()

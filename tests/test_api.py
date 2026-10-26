@@ -12,14 +12,12 @@ client = TestClient(app)
 _HIGH_RISK = {
     "tenure": 1, "MonthlyCharges": 95.0, "TotalCharges": 95.0,
     "Contract": "Month-to-month", "InternetService": "Fiber optic",
-    "PaymentMethod": "Electronic check", "TechSupport": "No",
-    "SeniorCitizen": 1,
+    "PaymentMethod": "Electronic check", "TechSupport": "No", "SeniorCitizen": 1,
 }
 _LOW_RISK = {
     "tenure": 68, "MonthlyCharges": 25.0, "TotalCharges": 1700.0,
     "Contract": "Two year", "InternetService": "DSL",
-    "PaymentMethod": "Credit card (automatic)", "TechSupport": "Yes",
-    "SeniorCitizen": 0,
+    "PaymentMethod": "Credit card (automatic)", "TechSupport": "Yes", "SeniorCitizen": 0,
 }
 
 
@@ -29,6 +27,12 @@ def test_predict_records_returns_well_formed_output():
     for row in out:
         assert 0.0 <= row["churn_probability"] <= 1.0
         assert row["risk_band"] in {"low", "medium", "high"}
+        assert "reasons" not in row  # not requested
+
+
+def test_predict_records_with_explanations():
+    out = predict_records([_HIGH_RISK], explain=True)
+    assert out[0]["reasons"] and len(out[0]["reasons"]) == 3
 
 
 def test_high_risk_scores_above_low_risk():
@@ -37,21 +41,33 @@ def test_high_risk_scores_above_low_risk():
 
 
 def test_health_endpoint():
-    resp = client.get("/health")
-    assert resp.status_code == 200
-    body = resp.json()
+    body = client.get("/health").json()
     assert body["status"] == "ok"
     assert body["model_ready"] is True
 
 
-def test_predict_endpoint():
-    resp = client.post("/predict", json={"customers": [_HIGH_RISK, _LOW_RISK]})
+def test_predict_endpoint_with_reasons():
+    resp = client.post("/predict", json={"customers": [_HIGH_RISK], "explain": True})
     assert resp.status_code == 200
-    preds = resp.json()["predictions"]
-    assert len(preds) == 2
-    assert all("churn_probability" in p for p in preds)
+    pred = resp.json()["predictions"][0]
+    assert pred["reasons"] is not None
+    assert "feature" in pred["reasons"][0]
+
+
+def test_stats_endpoint_counts_predictions():
+    before = client.get("/stats").json()["predictions_served"]
+    client.post("/predict", json={"customers": [_HIGH_RISK, _LOW_RISK]})
+    after = client.get("/stats").json()
+    assert after["predictions_served"] >= before + 2
+    assert set(after["risk_bands"]) == {"low", "medium", "high"}
 
 
 def test_predict_endpoint_rejects_empty_batch():
     resp = client.post("/predict", json={"customers": []})
-    assert resp.status_code == 422  # pydantic validation error
+    assert resp.status_code == 422
+
+
+def test_home_page_served():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Predict churn risk" in resp.text

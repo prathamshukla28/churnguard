@@ -45,6 +45,9 @@ DEMO_HTML = """<!doctype html>
   .rlabel{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;gap:10px;flex-wrap:wrap}
   .prob{font-family:var(--mono);font-size:2rem;font-weight:600;font-variant-numeric:tabular-nums}
   .band{font-family:var(--mono);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;padding:4px 10px;border-radius:999px;border:1px solid}
+  .reasons{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:8px}
+  .reasons li{display:flex;justify-content:space-between;gap:12px;font-size:.9rem;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 12px}
+  .reasons .why{color:var(--muted);font-family:var(--mono);font-size:.78rem}
   .foot{margin-top:28px;font-size:.84rem;color:var(--muted)}
   .foot a{color:var(--accent-2)}
   code{font-family:var(--mono);background:var(--surface-2);padding:2px 6px;border-radius:6px}
@@ -83,6 +86,7 @@ DEMO_HTML = """<!doctype html>
         <span class="band" id="band">—</span>
       </div>
       <div class="gauge"><span id="bar"></span></div>
+      <ul class="reasons" id="reasons"></ul>
     </div>
   </div>
 
@@ -109,7 +113,7 @@ DEMO_HTML = """<!doctype html>
     fetch("/predict", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({customers: [customer]})
+      body: JSON.stringify({customers: [customer], explain: true})
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -123,6 +127,19 @@ DEMO_HTML = """<!doctype html>
         var bar = document.getElementById("bar");
         bar.style.width = pct + "%";
         bar.style.background = COLORS[p.risk_band];
+        var reasons = document.getElementById("reasons");
+        reasons.innerHTML = "";
+        (p.reasons || []).forEach(function (r) {
+          var li = document.createElement("li");
+          var left = document.createElement("span");
+          left.textContent = r.feature + ": " + r.value;
+          var right = document.createElement("span");
+          right.className = "why";
+          right.textContent = (r.impact > 0 ? "↑ " : "↓ ") + r.direction;
+          right.style.color = r.impact > 0 ? COLORS.high : COLORS.low;
+          li.appendChild(left); li.appendChild(right);
+          reasons.appendChild(li);
+        });
         document.getElementById("result").classList.add("show");
       })
       .catch(function () {
