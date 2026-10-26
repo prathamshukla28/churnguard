@@ -35,6 +35,9 @@ def small_cfg(tmp_path_factory) -> Config:
     raw["artifacts"]["metrics_path"] = str(tmp / "metrics.json")
     raw["artifacts"]["model_card_path"] = str(tmp / "model_card.md")
     raw["artifacts"]["figures_dir"] = str(tmp / "figures")
+    raw["artifacts"]["reference_path"] = str(tmp / "reference_profile.json")
+    raw["artifacts"]["baseline_path"] = str(tmp / "baseline_metrics.json")
+    raw["registry"]["dir"] = str(tmp / "registry")
     return Config(raw=raw)
 
 

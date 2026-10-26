@@ -51,3 +51,26 @@ artifacts:
   metrics_path: reports/metrics.json
   model_card_path: reports/model_card.md
   figures_dir: reports/figures
+  reference_path: reports/reference_profile.json   # drift-monitoring baseline
+  baseline_path: reports/baseline_metrics.json      # CI quality floor
+
+monitoring:
+  # Population Stability Index (PSI) bands — the industry standard for churn/credit.
+  # < warn: stable | warn..alert: moderate drift | > alert: significant drift.
+  psi_warn: 0.1
+  psi_alert: 0.25
+  # Alert if live ROC-AUC drops this far below the baseline (labels required).
+  performance_drop_warn: 0.03
+  performance_drop_alert: 0.05
+
+registry:
+  dir: models/registry
+  promotion_metric: roc_auc        # champion/challenger comparison metric
+  min_improvement: 0.0             # challenger must beat champion by >= this to auto-promote
+  regression_tolerance: 0.02       # CI fails if metrics regress beyond this vs the baseline
+
+serving:
+  # Requests/minute per client IP for /predict and /monitor; 0 disables.
+  # Override at runtime with CHURNGUARD_RATE_LIMIT. API-key auth turns on when
+  # the CHURNGUARD_API_KEY environment variable is set (sent as X-API-Key).
+  rate_limit_per_minute: 120

@@ -1,5 +1,6 @@
 .PHONY: help install data data-real train evaluate test coverage lint typecheck \
-        serve docs docker-build docker-run clean all
+        serve docs monitor retrain registry regression loadtest docker-build \
+        docker-run clean all
 
 PY ?= python
 
@@ -39,6 +40,21 @@ serve:  ## Run the API locally with autoreload
 
 docs:  ## Regenerate the project dossier PDF (docs/ChurnGuard.pdf)
 	$(PY) scripts/make_docs_pdf.py
+
+retrain:  ## Retrain + champion/challenger promotion (registry)
+	$(PY) scripts/retrain.py
+
+registry:  ## List the model registry
+	$(PY) -m churnguard.registry list
+
+regression:  ## CI gate: fail if the model regressed vs the baseline
+	$(PY) scripts/check_regression.py
+
+monitor:  ## Drift report for a CSV batch (usage: make monitor CSV=path.csv)
+	$(PY) -m churnguard.monitor $(CSV)
+
+loadtest:  ## Benchmark the serving path (throughput + latency percentiles)
+	$(PY) scripts/loadtest.py
 
 docker-build:  ## Build the Docker image
 	docker build -t churnguard:latest .

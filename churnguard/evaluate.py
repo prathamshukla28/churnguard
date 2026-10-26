@@ -40,6 +40,7 @@ from sklearn.metrics import (
 )
 
 from .config import Config, load_config
+from .monitor import build_reference, save_reference
 from .tracking import log_evaluation
 from .train import TrainingResult, train
 
@@ -193,8 +194,32 @@ def evaluate(cfg: Config | None = None, result: TrainingResult | None = None) ->
         json.dumps(metrics, indent=2), encoding="utf-8"
     )
     _write_model_card(cfg, metrics)
+
+    # Capture the reference profile for drift monitoring and a baseline quality
+    # floor for the CI regression gate — both derived from this test split.
+    reference = build_reference(
+        X_test, y_proba, cfg, y=y_true,
+        baseline_roc_auc=float(roc_auc_score(y_true, y_proba)),
+    )
+    save_reference(reference, cfg)
+    _write_baseline(cfg, metrics)
+
     log_evaluation({k: v for k, v in metrics.items() if isinstance(v, (int, float))})
     return metrics
+
+
+def _write_baseline(cfg: Config, metrics: dict) -> None:
+    """Persist the quality floor the CI regression gate checks against."""
+    baseline = {
+        "roc_auc": metrics["roc_auc"],
+        "pr_auc": metrics["pr_auc"],
+        "brier": metrics["brier"],
+        "captured_at": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+        "note": "CI fails if a new model regresses beyond registry.regression_tolerance.",
+    }
+    cfg.path("artifacts", "baseline_path").write_text(
+        json.dumps(baseline, indent=2), encoding="utf-8"
+    )
 
 
 def _write_model_card(cfg: Config, metrics: dict) -> None:

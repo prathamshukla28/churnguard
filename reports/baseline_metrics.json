@@ -1,0 +1,7 @@
+{
+  "roc_auc": 0.8144,
+  "pr_auc": 0.5376,
+  "brier": 0.1291,
+  "captured_at": "2026-10-26T20:06:23+00:00",
+  "note": "CI fails if a new model regresses beyond registry.regression_tolerance."
+}
