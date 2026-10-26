@@ -475,7 +475,10 @@ stack = [
     ["Serving", "FastAPI, Uvicorn, Pydantic"],
     ["Packaging", "Docker, pip-tools (requirements.lock)"],
     ["Quality", "pytest + coverage, ruff, mypy, pre-commit"],
-    ["Ops", "GitHub Actions CI, MLflow, Makefile"],
+    ["MLOps", "File-based model registry, champion/challenger, CI regression gate"],
+    ["Monitoring", "PSI drift (data/prediction/performance), MLflow tracking"],
+    ["Observability", "JSON logs, Prometheus metrics, rate limiting, API-key auth"],
+    ["Ops", "GitHub Actions CI + scheduled retrain, Makefile"],
     ["Deploy", "Render blueprint / Hugging Face Spaces"],
 ]
 t = Table(stack, colWidths=[3.4 * cm, doc.width - 3.4 * cm])
@@ -496,12 +499,66 @@ t.setStyle(TableStyle([
 story.append(t)
 
 # =========================================================================
-# 6. INTERVIEW QUESTIONS
+# 6. PRODUCTION OPERATIONS & MLOps
 # =========================================================================
 story.append(PageBreak())
-h1("6 &nbsp; Interview Questions &amp; Answers")
-p("Grouped from “walk me through your project” to deeper ML and system-design "
-  "probes. Answers are written the way you would actually say them out loud.", LEAD)
+h1("6 &nbsp; Production Operations &amp; MLOps")
+p("Training a good model is the easy 20%. ChurnGuard is built to be <i>operated</i> — "
+  "the post-deployment lifecycle most portfolios never show. Full rationale lives in "
+  "the Architecture Decision Records (<font face='Courier'>docs/adr/</font>); the "
+  "on-call playbook is in <font face='Courier'>docs/RUNBOOK.md</font>.", LEAD)
+
+h2("6.1 &nbsp; Drift monitoring")
+p("A model decays as the world shifts; one that is never watched is a liability. A live "
+  "batch is compared to a <b>reference profile</b> captured at evaluation time, and drift "
+  "is graded with the <b>Population Stability Index (PSI)</b> — the churn/credit-scoring "
+  "standard (<font face='Courier'>&lt;0.1</font> stable, <font face='Courier'>0.1–0.25</font> "
+  "moderate, <font face='Courier'>&gt;0.25</font> significant). It covers three kinds of drift:")
+bullets([
+    "<b>Data drift</b> — PSI per input feature (the population changed).",
+    "<b>Prediction drift</b> — PSI on the score distribution (outputs shifted).",
+    "<b>Performance drift</b> — live ROC-AUC vs. the baseline, once labels arrive.",
+])
+p("Exposed via <font face='Courier'>POST /monitor</font> and "
+  "<font face='Courier'>python -m churnguard.monitor batch.csv</font>. Implemented in a "
+  "few lines of NumPy on purpose — no framework, so it runs the moment the repo is cloned.")
+
+h2("6.2 &nbsp; Model registry &amp; champion/challenger")
+p("Every trained model is an <b>immutable, versioned artifact</b> with a lifecycle stage "
+  "(<font face='Courier'>staging → production → archived</font>) in a manifest. "
+  "Promoting a version to production atomically archives the incumbent, giving full "
+  "provenance and <b>one-command rollback</b>. A scheduled retrain trains a "
+  "<b>challenger</b> and promotes it to <b>champion</b> only if it beats production on the "
+  "configured metric — otherwise production is left untouched.")
+
+h2("6.3 &nbsp; CI quality gate")
+p("Model quality is a first-class CI check, not a surprise in production. On every push "
+  "the pipeline trains and evaluates end to end, then a <b>regression gate</b> fails the "
+  "build if ROC-AUC/PR-AUC fall — or Brier rises — beyond tolerance versus a "
+  "committed baseline. A bad retrain is blocked exactly like a failing unit test.")
+
+h2("6.4 &nbsp; Observability &amp; hardening")
+bullets([
+    "<b>Structured JSON logs</b> with a request id (returned as "
+    "<font face='Courier'>X-Request-ID</font>) — traceable in any aggregator.",
+    "<b>Prometheus</b> exposition at <font face='Courier'>/metrics/prometheus</font>; "
+    "latency <b>p50/p95/p99</b> and throughput at <font face='Courier'>/stats</font>.",
+    "<b>Per-IP rate limiting</b> and optional <b>API-key auth</b> "
+    "(<font face='Courier'>X-API-Key</font>) on the scoring endpoints.",
+    "A serving <b>benchmark</b> (<font face='Courier'>reports/loadtest.md</font>): "
+    "p50 ~19 ms per single-row request, in-process.",
+])
+p("All standard-library — zero new runtime dependencies — and each component is "
+  "honest about its scope (per-process metrics for per-instance scraping; a gateway "
+  "enforces global limits across replicas).", SMALL)
+
+# =========================================================================
+# 7. INTERVIEW QUESTIONS
+# =========================================================================
+story.append(PageBreak())
+h1("7 &nbsp; Interview Questions &amp; Answers")
+p("Grouped from “walk me through your project” to deeper ML, system-design and "
+  "MLOps probes. Answers are written the way you would actually say them out loud.", LEAD)
 
 h2("A. Project walkthrough")
 qa("Walk me through this project end to end.",
@@ -587,7 +644,35 @@ qa("How would you scale or extend it?",
     "store for parity at scale, batch scoring on a schedule, and a small dashboard over the "
     "scores. For throughput, the stateless API scales horizontally behind a load balancer."])
 
-h2("E. Reflection")
+h2("E. Production ML &amp; MLOps")
+qa("How do you know if your model is still good after deployment?",
+   ["I monitor for drift. A live batch is compared to a reference profile from training "
+    "using PSI: data drift on each input, prediction drift on the score distribution, and "
+    "performance drift on ROC-AUC once labels arrive. PSI over 0.25 on a key feature is my "
+    "signal to investigate an upstream data bug first, then retrain if it's genuine."])
+qa("What is PSI and why use it over a KS test?",
+   ["Population Stability Index measures how much a distribution moved by bucketing both "
+    "and summing (actual% - expected%) x ln(actual%/expected%). It's the churn/credit "
+    "standard: thresholded, explainable to non-stats stakeholders, and works for numeric "
+    "and categorical features the same way. KS is a fine complement for numeric features; "
+    "I kept PSI because it's interpretable and needs only a tiny committed reference."])
+qa("Walk me through your model registry and promotion.",
+   ["Every model is an immutable version with a stage - staging, production, archived - in "
+    "a manifest. Retraining produces a challenger; it's promoted to production only if it "
+    "beats the current champion on the chosen metric, and promotion archives the incumbent "
+    "so rollback is one command. It's file-based rather than a hosted MLflow registry "
+    "because one service doesn't need a server to run, and it's trivially testable."])
+qa("How do you stop a bad model from reaching production?",
+   ["A CI regression gate. Every push trains and evaluates, then fails the build if "
+    "ROC-AUC or PR-AUC drop - or Brier rises - beyond a tolerance versus a committed "
+    "baseline. Model quality is checked like a unit test, so a bad retrain never ships."])
+qa("How would you make retraining automatic?",
+   ["A scheduled job - cron, Airflow, or a GitHub Actions schedule, which is what I wired "
+    "up - trains a challenger, runs the regression gate, and promotes only on improvement. "
+    "The decision is codified in evaluate_promotion, so the same logic runs by hand, on a "
+    "schedule, or in CI with no divergence."])
+
+h2("F. Reflection")
 qa("What would you do differently or add next?",
    ["Train on the full real Kaggle dataset in CI, add drift monitoring, and A/B test the "
     "retention actions the model triggers so I can measure realised ROI, not just offline "
