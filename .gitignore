@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Generated ML artifacts (reproducible via `make all`)
+data/*.csv
+models/*.joblib
+reports/metrics.json
+reports/model_card.md
+reports/figures/*.png
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Keep empty dirs
+!**/.gitkeep
