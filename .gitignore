@@ -6,7 +6,14 @@ venv/
 .env
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 *.egg-info/
+
+# Tooling output
+.coverage
+coverage.xml
+htmlcov/
+mlruns/
 
 # Large / regenerable artifacts (rebuild via `make all`)
 data/*.csv

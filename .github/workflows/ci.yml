@@ -27,11 +27,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt ruff
 
-      - name: Lint
+      - name: Lint (ruff)
         run: ruff check churnguard tests
 
-      - name: Run tests
-        run: python -m pytest -q
+      - name: Type-check (mypy)
+        run: mypy churnguard
+
+      - name: Run tests with coverage
+        env:
+          CHURNGUARD_TRACKING: "0"
+        run: pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
 
   train-smoke-test:
     runs-on: ubuntu-latest
@@ -43,6 +55,8 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Full pipeline runs end to end
+        env:
+          CHURNGUARD_TRACKING: "0"
         run: |
           python -m churnguard.train
           python -m churnguard.evaluate
