@@ -8,12 +8,13 @@ venv/
 .ruff_cache/
 *.egg-info/
 
-# Generated ML artifacts (reproducible via `make all`)
+# Large / regenerable artifacts (rebuild via `make all`)
 data/*.csv
 models/*.joblib
-reports/metrics.json
-reports/model_card.md
-reports/figures/*.png
+
+# NOTE: reports/ (metrics.json, model_card.md, figures/*.png) is intentionally
+# committed so the README renders the charts and numbers on GitHub without a
+# reviewer having to run the pipeline.
 
 # OS / editor
 .DS_Store
