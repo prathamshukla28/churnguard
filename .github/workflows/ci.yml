@@ -62,3 +62,10 @@ jobs:
           python -m churnguard.evaluate
           test -f models/churnguard.joblib
           test -f reports/metrics.json
+          test -f reports/reference_profile.json
+          test -f reports/baseline_metrics.json
+
+      - name: Model-regression gate
+        env:
+          CHURNGUARD_TRACKING: "0"
+        run: python scripts/check_regression.py

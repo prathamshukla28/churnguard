@@ -18,6 +18,8 @@ mlruns/
 # Large / regenerable artifacts (rebuild via `make all`)
 data/*.csv
 models/*.joblib
+# Model registry is local runtime state (versioned bundles + manifest).
+models/registry/
 
 # NOTE: reports/ (metrics.json, model_card.md, figures/*.png) is intentionally
 # committed so the README renders the charts and numbers on GitHub without a
