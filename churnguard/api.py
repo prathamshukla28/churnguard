@@ -1,6 +1,7 @@
 """FastAPI service exposing the churn model.
 
 Endpoints:
+* ``GET  /``         — interactive demo page.
 * ``GET  /health``   — liveness/readiness probe (reports whether a model is loaded).
 * ``GET  /metrics``  — the metrics the model was evaluated with, if available.
 * ``POST /predict``  — score a batch of customers.
@@ -14,9 +15,11 @@ from __future__ import annotations
 import json
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from ._demo import DEMO_HTML
 from .config import load_config
 from .predict import ModelNotTrainedError, predict_records
 
@@ -25,6 +28,12 @@ app = FastAPI(
     version=__version__,
     description="Predict telecom customer churn risk.",
 )
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def home() -> str:
+    """Serve the interactive demo page."""
+    return DEMO_HTML
 
 
 class Customer(BaseModel):

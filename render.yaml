@@ -1,0 +1,10 @@
+# Render blueprint — deploy ChurnGuard as a free Docker web service.
+# On render.com: New + → Blueprint → connect this repo → Apply.
+services:
+  - type: web
+    name: churnguard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true

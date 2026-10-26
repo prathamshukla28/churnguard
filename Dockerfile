@@ -23,8 +23,11 @@ RUN python -m churnguard.train && python -m churnguard.evaluate
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser
 
+# Cloud hosts (Render, Hugging Face Spaces, Cloud Run) inject the port via $PORT.
+ENV PORT=8000
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+    CMD python -c "import os,urllib.request,sys; p=os.environ.get('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://localhost:{p}/health').status==200 else 1)"
 
-CMD ["uvicorn", "churnguard.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so ${PORT} is expanded at runtime.
+CMD uvicorn churnguard.api:app --host 0.0.0.0 --port ${PORT:-8000}

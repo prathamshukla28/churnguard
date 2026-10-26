@@ -43,3 +43,5 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 # evaluate.py must set the matplotlib backend before importing pyplot.
 "churnguard/evaluate.py" = ["E402"]
+# _demo.py is a single embedded HTML/CSS template string; line length is moot.
+"churnguard/_demo.py" = ["E501"]
