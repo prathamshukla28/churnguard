@@ -1,0 +1,46 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python -m churnguard.*:*)",
+      "Bash(ruff:*)",
+      "Bash(python -m ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(make:*)",
+      "Bash(pre-commit:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker build:*)",
+      "Bash(pip install:*)",
+      "Bash(pip-compile:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git restore:*)",
+      "Read(./.env.example)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(git filter-branch:*)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.development)",
+      "Read(./.env.production)",
+      "Read(./.env.staging)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.production)",
+      "Read(**/secrets/**)"
+    ]
+  }
+}
