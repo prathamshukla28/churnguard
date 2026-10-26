@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from churnguard import api
 from churnguard.api import app
+from churnguard.observability import RateLimiter
 from churnguard.predict import predict_records
 
 client = TestClient(app)
@@ -71,3 +73,54 @@ def test_home_page_served():
     resp = client.get("/")
     assert resp.status_code == 200
     assert "Predict churn risk" in resp.text
+
+
+def test_health_reports_uptime():
+    body = client.get("/health").json()
+    assert "uptime_seconds" in body
+
+
+def test_stats_exposes_latency_percentiles():
+    client.post("/predict", json={"customers": [_HIGH_RISK]})
+    body = client.get("/stats").json()
+    assert set(body["latency_ms"]) == {"p50", "p95", "p99"}
+    assert body["requests_total"] >= 1
+
+
+def test_prometheus_exposition():
+    client.post("/predict", json={"customers": [_HIGH_RISK]})
+    resp = client.get("/metrics/prometheus")
+    assert resp.status_code == 200
+    assert "churnguard_requests_total" in resp.text
+    assert resp.headers["content-type"].startswith("text/plain")
+
+
+def test_monitor_endpoint_returns_drift_report():
+    resp = client.post("/monitor", json={"customers": [_HIGH_RISK, _LOW_RISK]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["overall_status"] in {"ok", "warn", "alert"}
+    assert "features" in body and "prediction_drift" in body
+
+
+def test_request_id_header_present():
+    resp = client.get("/health")
+    assert len(resp.headers.get("X-Request-ID", "")) == 12
+
+
+def test_api_key_enforced_when_configured(monkeypatch):
+    monkeypatch.setenv("CHURNGUARD_API_KEY", "s3cret")
+    denied = client.post("/predict", json={"customers": [_HIGH_RISK]})
+    assert denied.status_code == 401
+    allowed = client.post(
+        "/predict", json={"customers": [_HIGH_RISK]}, headers={"X-API-Key": "s3cret"}
+    )
+    assert allowed.status_code == 200
+
+
+def test_rate_limit_returns_429(monkeypatch):
+    monkeypatch.setattr(api, "limiter", RateLimiter(per_minute=1))
+    first = client.post("/predict", json={"customers": [_LOW_RISK]})
+    second = client.post("/predict", json={"customers": [_LOW_RISK]})
+    assert first.status_code == 200
+    assert second.status_code == 429
