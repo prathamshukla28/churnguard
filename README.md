@@ -14,6 +14,10 @@ Docker, CI) you'd expect in production.
 > than acquiring a new one. Ranking customers by churn risk lets a small
 > retention budget be spent where it matters most.
 
+📄 **[`docs/ChurnGuard.pdf`](docs/ChurnGuard.pdf)** — a one-file project dossier that
+explains the design in detail and includes an interview Q&A section. Regenerate it
+any time with `make docs` (reads the live metrics from `reports/metrics.json`).
+
 ---
 
 ## Results
@@ -155,7 +159,8 @@ churnguard/
 │   └── api.py             # FastAPI service (+ interactive demo page)
 ├── config/config.yaml     # all tunable settings
 ├── tests/                 # pytest suite (data, features, training, explain, API, CLI)
-├── scripts/               # make_dataset.py · download_data.py
+├── docs/ChurnGuard.pdf     # project dossier + interview Q&A (generated)
+├── scripts/               # make_dataset.py · download_data.py · make_docs_pdf.py
 ├── Dockerfile · Makefile · pyproject.toml · requirements.txt · requirements.lock
 ├── .pre-commit-config.yaml
 └── .github/workflows/ci.yml

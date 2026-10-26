@@ -1,5 +1,5 @@
 .PHONY: help install data data-real train evaluate test coverage lint typecheck \
-        serve docker-build docker-run clean all
+        serve docs docker-build docker-run clean all
 
 PY ?= python
 
@@ -36,6 +36,9 @@ typecheck:  ## Static type-check with mypy
 
 serve:  ## Run the API locally with autoreload
 	$(PY) -m uvicorn churnguard.api:app --reload
+
+docs:  ## Regenerate the project dossier PDF (docs/ChurnGuard.pdf)
+	$(PY) scripts/make_docs_pdf.py
 
 docker-build:  ## Build the Docker image
 	docker build -t churnguard:latest .
