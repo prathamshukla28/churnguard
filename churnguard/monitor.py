@@ -160,13 +160,15 @@ def compute_drift(
             continue
         cur_pct = _bucket_pct(vals, spec["edges"])
         psi = _psi(np.asarray(spec["ref_pct"]), cur_pct)
-        features.append({
-            "feature": col,
-            "type": "numeric",
-            "psi": round(psi, 4),
-            "mean_shift": round(float(np.mean(vals)) - spec["mean"], 4),
-            "status": _status(psi, warn, alert),
-        })
+        features.append(
+            {
+                "feature": col,
+                "type": "numeric",
+                "psi": round(psi, 4),
+                "mean_shift": round(float(np.mean(vals)) - spec["mean"], 4),
+                "status": _status(psi, warn, alert),
+            }
+        )
 
     for col, ref_map in reference.get("categorical", {}).items():
         if col not in X.columns:
@@ -177,12 +179,14 @@ def compute_drift(
         ref_pct = np.array([ref_map.get(c, 0.0) for c in cats])
         cur_pct = np.array([cur_map.get(c, 0.0) for c in cats])
         psi = _psi(ref_pct, cur_pct)
-        features.append({
-            "feature": col,
-            "type": "categorical",
-            "psi": round(psi, 4),
-            "status": _status(psi, warn, alert),
-        })
+        features.append(
+            {
+                "feature": col,
+                "type": "categorical",
+                "psi": round(psi, 4),
+                "status": _status(psi, warn, alert),
+            }
+        )
 
     features.sort(key=lambda f: f["psi"], reverse=True)
 

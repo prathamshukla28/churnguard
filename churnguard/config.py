@@ -8,6 +8,7 @@ runnable from any working directory (CLI, tests, Docker, CI).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -18,6 +19,9 @@ import yaml
 # Project root = the directory that contains this package.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+# Points the whole process (CLI, API, tests) at another config file. The test
+# suite uses it so it never reads or overwrites the real data and artifacts.
+CONFIG_ENV_VAR = "CHURNGUARD_CONFIG"
 
 
 @dataclass(frozen=True)
@@ -49,8 +53,12 @@ class Config:
 
 @cache
 def load_config(path: str | Path | None = None) -> Config:
-    """Load and cache the project configuration."""
-    cfg_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    """Load and cache the project configuration.
+
+    Resolution order: explicit ``path`` > ``$CHURNGUARD_CONFIG`` > the default.
+    """
+    env_path = os.environ.get(CONFIG_ENV_VAR, "").strip()
+    cfg_path = Path(path) if path else Path(env_path) if env_path else DEFAULT_CONFIG_PATH
     with open(cfg_path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
     return Config(raw=raw)

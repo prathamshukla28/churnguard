@@ -26,9 +26,17 @@ def test_addon_count_in_valid_range():
 def test_charges_per_tenure_handles_zero_tenure():
     df = pd.DataFrame(
         {"tenure": [0], "TotalCharges": [0.0]}
-        | {c: ["No"] for c in
-           ["OnlineSecurity", "OnlineBackup", "DeviceProtection",
-            "TechSupport", "StreamingTV", "StreamingMovies"]}
+        | {
+            c: ["No"]
+            for c in [
+                "OnlineSecurity",
+                "OnlineBackup",
+                "DeviceProtection",
+                "TechSupport",
+                "StreamingTV",
+                "StreamingMovies",
+            ]
+        }
     )
     out = engineer_features(df)
     assert out["charges_per_tenure"].notna().all()  # no division-by-zero NaN/inf
@@ -52,3 +60,29 @@ def test_preprocessor_produces_numeric_matrix():
     assert matrix.shape[0] == len(X)
     # Every output cell must be finite (no NaNs leaking into the model).
     assert pd.notna(matrix).all()
+
+
+def test_normalize_schema_canonicalises_flags_and_numbers():
+    from churnguard.features import normalize_schema
+
+    df = pd.DataFrame(
+        {
+            "SeniorCitizen": [1, 0, "1", True, None],
+            "tenure": ["5", " 0 ", "x", 3, None],
+            "TotalCharges": [" ", " ", "10.5", None, None],
+        }
+    )
+    out = normalize_schema(df)
+    assert list(out["SeniorCitizen"][:4]) == ["Yes", "No", "Yes", "Yes"]
+    assert pd.isna(out["SeniorCitizen"][4])
+    assert out["tenure"].dtype == float
+    # Blank TotalCharges is 0 only for a first-month customer; else unknown.
+    assert pd.isna(out.loc[0, "TotalCharges"])
+    assert out.loc[1, "TotalCharges"] == 0.0
+    assert pd.isna(out.loc[3, "TotalCharges"])
+
+
+def test_partial_record_leaves_unknowns_missing():
+    out = engineer_features(pd.DataFrame([{"Contract": "Month-to-month"}]))
+    assert pd.isna(out.loc[0, "charges_per_tenure"])
+    assert pd.isna(out.loc[0, "num_addon_services"])

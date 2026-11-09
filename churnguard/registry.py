@@ -6,6 +6,12 @@ trained, when, with which metrics, and which version is currently serving — th
 provenance a team needs to answer "what is in production and why?" and to roll
 back in one call.
 
+The registry directory is local runtime state (gitignored), so a fresh checkout
+or CI runner has no production entry. To keep champion/challenger meaningful
+there, :func:`champion_metrics` falls back to the **committed baseline**
+(``reports/baseline_metrics.json``): a challenger must beat the model the repo
+currently vouches for, not an empty registry.
+
 It is deliberately file-based (a ``registry.json`` manifest beside the versioned
 bundles) rather than a hosted MLflow Model Registry: no server to run, it is
 trivially testable, and it version-controls cleanly. The champion/challenger
@@ -31,7 +37,7 @@ def _now() -> str:
 
 
 def _registry_dir(cfg: Config) -> Path:
-    path = (cfg.path("registry", "dir") if cfg.get("registry", "dir") else None)
+    path = cfg.path("registry", "dir") if cfg.get("registry", "dir") else None
     if path is None:  # pragma: no cover - config always sets it
         raise KeyError("registry.dir not configured")
     path.mkdir(parents=True, exist_ok=True)
@@ -93,15 +99,18 @@ def register_model(
     bundle.save(version_dir / "model.joblib")
     (version_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
-    manifest["models"].append({
-        "version": version,
-        "stage": stage,
-        "model_name": bundle.model_name,
-        "model_version": bundle.version,
-        "metrics": {k: v for k, v in metrics.items() if isinstance(v, (int, float))},
-        "path": str((version_dir / "model.joblib").relative_to(_registry_dir(cfg))),
-        "registered_at": _now(),
-    })
+    manifest["models"].append(
+        {
+            "version": version,
+            "stage": stage,
+            "model_name": bundle.model_name,
+            "model_version": bundle.version,
+            "metrics": {k: v for k, v in metrics.items() if isinstance(v, (int, float))},
+            "data_sha256": bundle.data_sha256,
+            "path": str((version_dir / "model.joblib").relative_to(_registry_dir(cfg))),
+            "registered_at": _now(),
+        }
+    )
     _save_manifest(manifest, cfg)
     return version
 
@@ -123,33 +132,54 @@ def promote(version: str, stage: str, cfg: Config | None = None) -> None:
     _save_manifest(manifest, cfg)
 
 
+def champion_metrics(cfg: Config | None = None) -> tuple[dict[str, Any] | None, str]:
+    """The incumbent's metrics and where they came from.
+
+    Local registry production entry first; otherwise the committed baseline;
+    otherwise ``(None, "none")``.
+    """
+    from .quality import load_baseline
+
+    cfg = cfg or load_config()
+    entry = production_entry(cfg)
+    if entry is not None:
+        return {**entry["metrics"], "data_sha256": entry.get("data_sha256")}, (
+            f"registry v{entry['version']}"
+        )
+    baseline = load_baseline(cfg)
+    if baseline is not None:
+        return baseline, "committed baseline"
+    return None, "none"
+
+
 def evaluate_promotion(
     candidate_metrics: dict[str, Any], cfg: Config | None = None
 ) -> tuple[bool, str]:
     """Champion/challenger decision: should the candidate replace production?
 
     Returns ``(should_promote, human_readable_reason)``. The candidate wins if
-    there is no incumbent, or if it beats the incumbent on the configured metric
-    by at least ``registry.min_improvement``.
+    there is no incumbent at all, or if it beats the incumbent (see
+    :func:`champion_metrics`) on the configured metric by at least
+    ``registry.min_improvement``.
     """
     cfg = cfg or load_config()
     metric = cfg.get("registry", "promotion_metric", default="roc_auc")
     min_improvement = float(cfg.get("registry", "min_improvement", default=0.0))
 
-    champion = production_entry(cfg)
+    champion, source = champion_metrics(cfg)
     cand = float(candidate_metrics.get(metric, 0.0))
-    if champion is None:
-        return True, f"no production model yet; promoting ({metric}={cand:.4f})"
+    if champion is None or champion.get(metric) is None:
+        return True, f"no champion yet; promoting ({metric}={cand:.4f})"
 
-    champ = float(champion["metrics"].get(metric, 0.0))
+    champ = float(champion[metric])
     delta = cand - champ
     if delta >= min_improvement:
         return True, (
-            f"challenger {metric}={cand:.4f} beats champion {champ:.4f} "
+            f"challenger {metric}={cand:.4f} beats champion ({source}) {champ:.4f} "
             f"(+{delta:.4f} >= {min_improvement})"
         )
     return False, (
-        f"challenger {metric}={cand:.4f} does not beat champion {champ:.4f} "
+        f"challenger {metric}={cand:.4f} does not beat champion ({source}) {champ:.4f} "
         f"(delta {delta:+.4f} < {min_improvement}); keeping production"
     )
 
@@ -170,8 +200,9 @@ def _cli(argv: list[str] | None = None) -> int:  # pragma: no cover - thin CLI w
         for m in models():
             flag = "  <- production" if m["stage"] == "production" else ""
             auc = m["metrics"].get("roc_auc", "?")
-            print(f"  v{m['version']:<3} {m['stage']:<11} {m['model_name']:<20} "
-                  f"roc_auc={auc}{flag}")
+            print(
+                f"  v{m['version']:<3} {m['stage']:<11} {m['model_name']:<20} roc_auc={auc}{flag}"
+            )
         if prod is None:
             print("  (no model in production)")
     elif args.cmd == "promote":

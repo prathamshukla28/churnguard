@@ -27,9 +27,14 @@ from churnguard.api import app  # noqa: E402
 from churnguard.config import load_config  # noqa: E402
 
 _CUSTOMER = {
-    "tenure": 3, "MonthlyCharges": 89.0, "TotalCharges": 267.0,
-    "Contract": "Month-to-month", "InternetService": "Fiber optic",
-    "PaymentMethod": "Electronic check", "TechSupport": "No", "SeniorCitizen": 1,
+    "tenure": 3,
+    "MonthlyCharges": 89.0,
+    "TotalCharges": 267.0,
+    "Contract": "Month-to-month",
+    "InternetService": "Fiber optic",
+    "PaymentMethod": "Electronic check",
+    "TechSupport": "No",
+    "SeniorCitizen": 1,
 }
 
 

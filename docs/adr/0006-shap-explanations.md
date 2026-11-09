@@ -9,7 +9,7 @@ the question is per-customer ("why is *this* account high risk?"). Explanations 
 speak in business terms (`Contract`), not transformed columns (`cat__Contract_Month-to-month`).
 
 ## Decision
-Return the top-k **SHAP** risk drivers with each prediction. For the linear serving
+Return the top-k **SHAP** risk drivers with each prediction. For a linear base
 model, SHAP values have a closed form — `coef_j · (x_j − E[x_j])` — computed directly
 with no approximation; for tree models, fall back to `shap.TreeExplainer`. A SHAP
 **background sample** (transformed) is stored in the bundle. Contributions in the
@@ -23,3 +23,6 @@ business-readable, with a direction ("increases/decreases risk").
 - Linear closed-form is exact and fast; tree explanations cost more compute.
 - Explanation values are offsets from a background mean, not probabilities — the UI
   presents them as relative drivers, not standalone percentages.
+- They explain the **uncalibrated** base estimator (log-odds for linear/boosted
+  models, probability for random forests) while the returned probability is
+  calibrated. Every explained `/predict` response says so in `explanation_basis`.

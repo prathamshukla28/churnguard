@@ -4,13 +4,22 @@
 seed: 42
 
 data:
-  raw_path: data/churn.csv
-  n_rows: 7043            # matches the real Telco Customer Churn dataset size
-  test_size: 0.2
+  # Which dataset trains/evaluates the model:
+  #   real      - the public IBM Telco Customer Churn CSV (the default). Downloaded
+  #               on first use (or via `make data-real`) and verified by SHA-256.
+  #   synthetic - a generated stand-in whose label comes from a hand-written
+  #               logistic formula. ONLY for fast, offline unit tests: a model
+  #               trained on it just recovers that formula, so its metrics and
+  #               "drivers" say nothing about real churn.
+  source: real
+  raw_path: data/telco_churn.csv
+  synthetic_path: data/synthetic_churn.csv
+  n_rows: 7043            # synthetic only: size of the generated set
+  test_size: 0.2          # held-out test split; touched exactly once, by evaluate
   target: Churn
-  # Public mirror of the real Telco Customer Churn dataset. `make data-real`
-  # downloads this to raw_path; otherwise a realistic synthetic set is generated.
   real_url: https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv
+  # SHA-256 of the file at real_url; a mismatch aborts the download.
+  real_sha256: 16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91
 
 features:
   # Columns treated as numeric (scaled). Everything else categorical (one-hot).
@@ -25,7 +34,14 @@ features:
     - customerID
 
 model:
-  # Candidate estimators compared by cross-validated ROC-AUC. Best one is tuned.
+  # Candidate estimators compared by cross-validated ROC-AUC, listed from the
+  # simplest / cheapest to serve to the most complex.
+  #   selection_rule: best               -> highest mean CV score wins
+  #   selection_rule: one_standard_error -> the SIMPLEST candidate whose mean is
+  #     within one standard error of the best (Breiman's 1-SE rule). On Telco the
+  #     three candidates differ by ~0.003 AUC, far inside fold noise, and the
+  #     calibrated forest is ~15x slower to serve.
+  selection_rule: one_standard_error
   candidates:
     - logistic_regression
     - random_forest
@@ -42,7 +58,8 @@ model:
 threshold:
   # The decision threshold is chosen to minimise business cost, not left at 0.5.
   # A missed churner (false negative) typically costs more than a wasted
-  # retention offer (false positive).
+  # retention offer (false positive). It is selected on OUT-OF-FOLD predictions
+  # over the training split only; the test split never influences it.
   cost_fn: 5
   cost_fp: 1
 
@@ -52,7 +69,8 @@ artifacts:
   model_card_path: reports/model_card.md
   figures_dir: reports/figures
   reference_path: reports/reference_profile.json   # drift-monitoring baseline
-  baseline_path: reports/baseline_metrics.json      # CI quality floor
+  # CI quality floor. Frozen and committed: only `make promote-baseline` writes it.
+  baseline_path: reports/baseline_metrics.json
 
 monitoring:
   # Population Stability Index (PSI) bands — the industry standard for churn/credit.
@@ -66,7 +84,9 @@ monitoring:
 registry:
   dir: models/registry
   promotion_metric: roc_auc        # champion/challenger comparison metric
-  min_improvement: 0.0             # challenger must beat champion by >= this to auto-promote
+  # Challenger must beat the champion by >= this to auto-promote. The champion is
+  # the local registry's production entry, else the committed baseline metrics.
+  min_improvement: 0.0
   regression_tolerance: 0.02       # CI fails if metrics regress beyond this vs the baseline
 
 serving:
@@ -74,3 +94,18 @@ serving:
   # Override at runtime with CHURNGUARD_RATE_LIMIT. API-key auth turns on when
   # the CHURNGUARD_API_KEY environment variable is set (sent as X-API-Key).
   rate_limit_per_minute: 120
+  # Upper bound on distinct clients the limiter tracks at once (memory guard).
+  rate_limit_max_clients: 10000
+  # Only trust X-Forwarded-For when the service sits behind a proxy you control
+  # (Render, a load balancer). Otherwise any client could spoof its rate-limit
+  # key. Override with CHURNGUARD_TRUST_PROXY=1. `trusted_proxy_hops` is how many
+  # proxies append to the header; the client is that many entries from the right.
+  trust_forwarded_for: false
+  trusted_proxy_hops: 1
+  # Require the API key for the operational endpoints (/metrics,
+  # /metrics/prometheus, /stats) too. Override with CHURNGUARD_PROTECT_OPS=1.
+  protect_ops_endpoints: false
+  # Risk bands are tied to the decision threshold so they never contradict
+  # `will_churn`: low = below the threshold (no action); medium = at/above it;
+  # high = calibrated probability >= this value (more likely than not to churn).
+  high_risk_probability: 0.5

@@ -21,4 +21,7 @@ the retraining job and documented for a CI promotion gate.
 - Trivially unit-testable (point it at a temp dir) and diff-able.
 - The registry is local runtime state (git-ignored), not a shared service — fine for
   one service; a team with many models would graduate to a hosted registry.
+- Because a fresh checkout or CI runner has an empty registry, the champion falls
+  back to the committed `reports/baseline_metrics.json`, so promotion is always
+  measured against the model the repo vouches for.
 - MLflow is still used for *experiment* tracking (best-effort), a complementary concern.

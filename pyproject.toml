@@ -31,8 +31,9 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.8",
     "pre-commit>=3.5",
+    "pip-tools>=7.4",
+    # Best-effort experiment tracking (churnguard/tracking.py); never needed to serve.
     "mlflow>=2.9",
-    "reportlab>=4.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -46,6 +47,10 @@ addopts = "-q"
 [tool.coverage.run]
 source = ["churnguard"]
 omit = ["churnguard/_demo.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
 
 [tool.mypy]
 python_version = "3.10"
@@ -63,8 +68,7 @@ target-version = "py310"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
-# evaluate.py sets the matplotlib backend before importing pyplot (E402) and
-# uses compact one-line plotting helpers (E702).
-"churnguard/evaluate.py" = ["E402", "E702"]
+# evaluate.py sets the matplotlib backend before importing pyplot (E402).
+"churnguard/evaluate.py" = ["E402"]
 # _demo.py is a single embedded HTML/CSS template string; line length is moot.
 "churnguard/_demo.py" = ["E501"]

@@ -1,0 +1,22 @@
+# Keep the build context small and free of local state; the image downloads
+# and verifies its own data and trains its own model.
+.git
+.github
+.venv
+venv
+.claude
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+mlruns
+data/*.csv
+models
+reports
+docs
+tests
+*.pdf
+CLAUDE.md

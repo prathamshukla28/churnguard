@@ -67,7 +67,7 @@ DEMO_HTML = """<!doctype html>
       <div class="field"><label for="tenure">Tenure (months)</label>
         <input type="number" id="tenure" min="0" max="72" value="2"></div>
       <div class="field"><label for="monthly">Monthly charges ($)</label>
-        <input type="number" id="monthly" min="0" step="0.05" value="89.90"></div>
+        <input type="number" id="monthly" min="0" step="0.05" value="70.70"></div>
       <div class="field"><label for="contract">Contract</label>
         <select id="contract"><option>Month-to-month</option><option>One year</option><option>Two year</option></select></div>
       <div class="field"><label for="internet">Internet service</label>
@@ -90,8 +90,11 @@ DEMO_HTML = """<!doctype html>
     </div>
   </div>
 
-  <p class="foot">Model: logistic regression, ROC-AUC 0.81 on held-out data.
-    Code &amp; full write-up on <a href="https://github.com/prathamshukla28/churnguard">GitHub</a>.</p>
+  <p class="foot">Trained on the public IBM Telco churn sample; held-out scores at
+    <a href="/metrics" style="color:var(--accent-2)">/metrics</a>. Fields not shown are imputed
+    from typical customers. Reasons explain the uncalibrated base model, so they show direction,
+    not shares of the percentage. Code on
+    <a href="https://github.com/prathamshukla28/churnguard">GitHub</a>.</p>
 </div>
 
 <script>

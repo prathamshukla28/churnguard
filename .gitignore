@@ -32,3 +32,16 @@ models/registry/
 
 # Keep empty dirs
 !**/.gitkeep
+
+# Datasets are downloaded, never committed (the Telco CSV is cited, not
+# redistributed). `data/*.csv` above covers both real and synthetic files.
+
+# Personal / AI-assistant scaffolding and interview-prep material: kept locally,
+# not part of the public project.
+.claude/
+CLAUDE.md
+ChurnGuard-Project-and-Interview.pdf
+docs/ChurnGuard.pdf
+docs/PROJECT_AND_INTERVIEW.md
+scripts/make_docs_pdf.py
+docs/adr/0001-record-architecture-decisions.md

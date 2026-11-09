@@ -1,15 +1,23 @@
 name: Scheduled retrain
 
-# Retrain on a schedule (and on demand) so the model never goes stale silently.
-# The run trains a challenger, evaluates it, and enforces the regression gate:
-# a model that is worse than the committed baseline fails the job instead of
-# shipping. The fresh model + reports are uploaded as a build artifact; wiring
-# the promotion/deploy step to your environment is the one piece left to you.
+# Honest scope: training is seeded, so retraining on unchanged data reproduces
+# the same model. scripts/retrain.py fingerprints the dataset and exits early
+# ("skipped") when it matches the data the current champion was trained on. With
+# the static public Telco snapshot this job will normally skip; it becomes useful
+# once data.raw_path / data.real_url point at a refreshed customer extract (update
+# data.real_sha256 too). When it does train, a challenger that regresses vs. the
+# committed baseline fails the job; a better one is uploaded for human review.
+# Promotion to the deployed service and `make promote-baseline` stay manual.
 
 on:
   schedule:
     - cron: "0 3 1 * *"   # 03:00 UTC on the 1st of each month
-  workflow_dispatch: {}    # allow manual runs from the Actions tab
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Retrain even if the data is unchanged"
+        type: boolean
+        default: false
 
 jobs:
   retrain:
@@ -21,23 +29,17 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements.lock
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install pinned runtime dependencies
+        run: pip install -r requirements.lock
 
-      - name: Retrain, evaluate and register a challenger
+      - name: Retrain (skips if data unchanged; fails on regression)
         env:
           CHURNGUARD_TRACKING: "0"
-        run: python scripts/retrain.py
+        run: python scripts/retrain.py ${{ inputs.force && '--force' || '' }}
 
-      - name: Regression gate (fail if worse than the baseline)
-        env:
-          CHURNGUARD_TRACKING: "0"
-        run: python scripts/check_regression.py
-
-      - name: Upload the retrained model and reports
+      - name: Upload the retrained model and reports (if a model was produced)
         uses: actions/upload-artifact@v4
         with:
           name: churnguard-model-${{ github.run_number }}
@@ -45,5 +47,5 @@ jobs:
             models/churnguard.joblib
             reports/metrics.json
             reports/model_card.md
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 90

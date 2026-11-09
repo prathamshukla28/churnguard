@@ -1,16 +1,12 @@
-"""Automated retraining with a champion/challenger promotion gate.
+"""Retrain with a data-change check, regression gate and champion/challenger.
 
-Trains a fresh model on the current data, evaluates it, registers it in the model
-registry as a *challenger*, and promotes it to production only if it beats the
-incumbent champion on the configured metric (``registry.promotion_metric``). This
-is the job a scheduler (cron, Airflow, GitHub Actions `schedule:`) would run to
-keep the model fresh without a human promoting every run by hand.
+    python scripts/retrain.py               # skip if data unchanged; else gate + maybe promote
+    python scripts/retrain.py --force       # retrain even on identical data
+    python scripts/retrain.py --no-promote  # register as staging only
 
-    python scripts/retrain.py            # train, evaluate, auto-promote if better
-    python scripts/retrain.py --no-promote   # register as staging only
-
-Exit code is 0 whether or not the challenger is promoted; it is non-zero only on
-an actual failure, so a scheduler distinguishes "no improvement" from "broke".
+See :mod:`churnguard.retrain` for the full policy. Exit codes: 0 = skipped,
+staged or promoted (a scheduler should not page on "no improvement"); 1 = the
+challenger regressed beyond tolerance vs. the committed baseline.
 """
 
 from __future__ import annotations
@@ -21,38 +17,31 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run from anywhere
 
-from churnguard import registry  # noqa: E402
-from churnguard.config import load_config  # noqa: E402
-from churnguard.evaluate import evaluate  # noqa: E402
-from churnguard.train import train  # noqa: E402
+from churnguard.retrain import retrain  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Retrain and conditionally promote a model.")
-    parser.add_argument("--no-promote", action="store_true",
-                        help="Register as staging only; never auto-promote.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Retrain even if the data is unchanged since the champion.",
+    )
+    parser.add_argument(
+        "--no-promote", action="store_true", help="Register as staging only; never auto-promote."
+    )
     args = parser.parse_args(argv)
 
-    cfg = load_config()
-    print("Training challenger ...")
-    result = train(cfg)
-    metrics = evaluate(cfg, result=result)
-    print(f"Challenger: {result.best_name} | roc_auc={metrics['roc_auc']} "
-          f"brier={metrics['brier']}")
-
-    version = registry.register_model(result.bundle, metrics, cfg, stage="staging")
-    print(f"Registered as v{version} (staging).")
-
-    if args.no_promote:
-        print("--no-promote set; leaving in staging.")
-        return 0
-
-    should, reason = registry.evaluate_promotion(metrics, cfg)
-    print(f"Promotion decision: {reason}")
-    if should:
-        registry.promote(version, "production", cfg)
-        print(f"Promoted v{version} -> production.")
-    return 0
+    outcome = retrain(force=args.force, promote=not args.no_promote)
+    print(f"[{outcome.status}] {outcome.reason}")
+    if outcome.metrics:
+        print(f"Challenger roc_auc={outcome.metrics['roc_auc']} brier={outcome.metrics['brier']}")
+    if outcome.status == "promoted":
+        print(
+            f"Promoted v{outcome.version}. Review the refreshed reports/, then run "
+            "`make promote-baseline` and commit to freeze it as the CI floor."
+        )
+    return 1 if outcome.status == "regressed" else 0
 
 
 if __name__ == "__main__":

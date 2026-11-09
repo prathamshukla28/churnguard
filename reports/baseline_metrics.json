@@ -1,7 +1,11 @@
 {
-  "roc_auc": 0.8144,
-  "pr_auc": 0.5376,
-  "brier": 0.1291,
-  "captured_at": "2026-10-26T20:06:23+00:00",
-  "note": "CI fails if a new model regresses beyond registry.regression_tolerance."
+  "roc_auc": 0.8402,
+  "pr_auc": 0.6253,
+  "brier": 0.1389,
+  "model": "logistic_regression",
+  "data_source": "real",
+  "data_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
+  "n_test": 1409,
+  "promoted_at": "2026-11-09T21:26:58+00:00",
+  "note": "Frozen quality floor. Written only by `make promote-baseline`; CI fails if a new model regresses beyond registry.regression_tolerance."
 }

@@ -18,7 +18,8 @@ import pandas as pd
 
 from .bundle import ModelBundle
 from .config import Config, load_config
-from .explain import explain_records
+from .decision import risk_band
+from .explain import explain_records, explanation_basis
 from .features import engineer_features
 
 
@@ -52,8 +53,13 @@ load_model.cache_clear = _BUNDLE_CACHE.clear  # type: ignore[attr-defined]
 load_bundle.cache_clear = _BUNDLE_CACHE.clear  # type: ignore[attr-defined]
 
 
-def _risk_band(p: float) -> str:
-    return "high" if p >= 0.66 else "medium" if p >= 0.33 else "low"
+def high_risk_probability(cfg: Config) -> float:
+    return float(cfg.get("serving", "high_risk_probability", default=0.5))
+
+
+def explanation_info(cfg: Config | None = None) -> dict[str, str]:
+    """What the SHAP ``reasons`` explain (model, output space) for the served bundle."""
+    return explanation_basis(load_bundle(cfg))
 
 
 def predict_records(
@@ -64,8 +70,10 @@ def predict_records(
 ) -> list[dict]:
     """Score a batch of raw customer records.
 
-    Returns one dict per record with the churn probability, the thresholded
-    decision, a risk band, and (when ``explain``) the top SHAP risk drivers.
+    Returns one dict per record with the calibrated churn probability, the
+    thresholded decision, a risk band derived from the *same* threshold (so
+    ``will_churn`` is true exactly when the band is not ``low``), and (when
+    ``explain``) the top SHAP risk drivers of the uncalibrated base model.
     """
     cfg = cfg or load_config()
     bundle = load_bundle(cfg)
@@ -83,7 +91,7 @@ def predict_records(
         row = {
             "churn_probability": round(p, 4),
             "will_churn": bool(p >= thr),
-            "risk_band": _risk_band(p),
+            "risk_band": risk_band(p, thr, high_risk_probability(cfg)),
         }
         if explain:
             row["reasons"] = why
@@ -105,9 +113,7 @@ def _cli(argv: list[str] | None = None) -> int:
     scored["will_churn"] = [r["will_churn"] for r in results]
     scored["risk_band"] = [r["risk_band"] for r in results]
     if args.explain:
-        scored["top_reason"] = [
-            r["reasons"][0]["feature"] if r["reasons"] else "" for r in results
-        ]
+        scored["top_reason"] = [r["reasons"][0]["feature"] if r["reasons"] else "" for r in results]
 
     if args.out:
         scored.to_csv(args.out, index=False)

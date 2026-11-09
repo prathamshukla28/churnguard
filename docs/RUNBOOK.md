@@ -56,11 +56,16 @@ failure can be traced to its exact log line).
 
 ### A4 — Retrain & promote
 ```bash
-python scripts/retrain.py        # trains a challenger, evaluates, auto-promotes if better
+python scripts/retrain.py        # skips if data unchanged; else gate + promote-if-better
+python scripts/retrain.py --force   # retrain on identical data (reproduces the same model)
 make registry                    # confirm the new production version
 ```
-The challenger is promoted only if it beats the champion on `registry.promotion_metric`.
-CI runs `scripts/check_regression.py`, so a regressing model is blocked before deploy.
+Retraining is seeded, so it only changes anything when the data changed (new
+customers/labels at `data.raw_path`). A challenger that regresses beyond tolerance
+vs. the committed baseline is rejected (exit 1); otherwise it is promoted only if
+it beats the champion (registry production entry, else the committed baseline) on
+`registry.promotion_metric`. After review, `make promote-baseline` and commit to
+move the CI floor.
 
 **Rollback:** `python -m churnguard.registry promote <OLD_VERSION> production`, then
 copy that version's `model.joblib` to the serving path and restart.
@@ -85,8 +90,10 @@ copy that version's `model.joblib` to the serving path and restart.
 ## Routine operations
 
 - **Full rebuild:** `make all` (data → train → evaluate → lint → typecheck → test).
-- **Regenerate monitoring baseline:** `make evaluate` (rewrites `reports/reference_profile.json`
-  and `reports/baseline_metrics.json`). Do this intentionally — it moves the goalposts.
+- **Regenerate the drift reference:** `make evaluate` rewrites `reports/reference_profile.json`
+  from the current model's test split.
+- **Move the quality floor:** `make promote-baseline` (the only writer of
+  `reports/baseline_metrics.json`). Do this intentionally and commit it — it moves the goalposts.
 - **Benchmark serving:** `make loadtest` → `reports/loadtest.md`.
 - **Inspect models:** `make registry`.
 
@@ -95,5 +102,8 @@ copy that version's `model.joblib` to the serving path and restart.
 | --- | --- |
 | `CHURNGUARD_API_KEY` | Require `X-API-Key` on `/predict` and `/monitor` (unset = open). |
 | `CHURNGUARD_RATE_LIMIT` | Requests/min per client IP (overrides config; `0` = off). |
+| `CHURNGUARD_PROTECT_OPS` | `1` also requires the key on `/metrics`, `/metrics/prometheus`, `/stats` (fails closed if no key is set). |
+| `CHURNGUARD_TRUST_PROXY` | `1` keys rate limits on `X-Forwarded-For` (set only behind a proxy you control, e.g. Render). |
+| `CHURNGUARD_CONFIG` | Path to an alternative config file (the test suite uses this). |
 | `CHURNGUARD_TRACKING` | `0` disables MLflow logging. |
 | `LOG_LEVEL` | Log verbosity (default `INFO`). |

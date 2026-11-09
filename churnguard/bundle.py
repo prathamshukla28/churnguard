@@ -8,7 +8,12 @@ self-describing file:
 * ``base_pipeline``  — the uncalibrated ``Pipeline(pre, clf)``, used by the SHAP
   explainer (it needs the raw preprocessor + estimator, not the calibration wrapper).
 * ``feature_names``  — the raw (post feature-engineering) input columns the model expects.
-* ``threshold``      — the business-chosen decision threshold (set during evaluation).
+* ``threshold``      — the business-chosen decision threshold, selected at training
+  time on out-of-fold predictions over the training split (never on the test split).
+* ``threshold_curve`` — the (grid, cost) curve that threshold was chosen from.
+* ``data_source`` / ``data_sha256`` / ``test_index`` — which data trained the model
+  and which rows were held out, so ``evaluate`` scores exactly the untouched test
+  split of exactly that data without retraining.
 * ``version`` / ``trained_at`` / ``model_name`` — provenance.
 """
 
@@ -17,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -41,6 +47,16 @@ class ModelBundle:
     # For SHAP explanations: a transformed background sample + its column names.
     background: np.ndarray | None = None
     transformed_feature_names: list[str] = field(default_factory=list)
+    # How the threshold was chosen, and on what.
+    threshold_source: str = "unset"
+    threshold_curve: dict[str, list[float]] | None = None
+    # Data provenance + the held-out split.
+    data_source: str | None = None
+    data_sha256: str | None = None
+    test_index: list[int] | None = None
+    # Model-selection provenance (cross-validated on the training split).
+    cv_scores: dict[str, float] | None = None
+    best_params: dict[str, Any] | None = None
 
     def save(self, path: str | Path) -> None:
         path = Path(path)

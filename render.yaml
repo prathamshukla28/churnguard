@@ -8,3 +8,14 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      # Render terminates TLS at its proxy, which appends the client address to
+      # X-Forwarded-For; trust exactly that one hop for rate limiting.
+      - key: CHURNGUARD_TRUST_PROXY
+        value: "1"
+      # Optional: set CHURNGUARD_API_KEY in the dashboard (sync: false keeps it out
+      # of git) to require X-API-Key on /predict and /monitor. Note the public demo
+      # page cannot send a key. Set CHURNGUARD_PROTECT_OPS=1 to also lock
+      # /metrics, /metrics/prometheus and /stats behind the key.
+      - key: CHURNGUARD_API_KEY
+        sync: false

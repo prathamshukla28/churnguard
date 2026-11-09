@@ -58,3 +58,24 @@ def test_registered_bundle_is_loadable(small_cfg, tmp_path):
     saved = tmp_path / "registry" / entry["path"]
     assert saved.exists()
     assert isinstance(ModelBundle.load(saved), ModelBundle)
+
+
+def test_champion_falls_back_to_committed_baseline(small_cfg, tmp_path):
+    """With an empty (gitignored) registry, the committed baseline is the champion."""
+    import json
+
+    raw = copy.deepcopy(small_cfg.raw)
+    raw["registry"]["dir"] = str(tmp_path / "registry")
+    raw["artifacts"]["baseline_path"] = str(tmp_path / "baseline_metrics.json")
+    cfg = Config(raw=raw)
+
+    assert registry.champion_metrics(cfg) == (None, "none")
+    (tmp_path / "baseline_metrics.json").write_text(
+        json.dumps({"roc_auc": 0.84, "pr_auc": 0.65, "brier": 0.14}), encoding="utf-8"
+    )
+    champ, source = registry.champion_metrics(cfg)
+    assert source == "committed baseline" and champ["roc_auc"] == 0.84
+
+    should, reason = registry.evaluate_promotion({"roc_auc": 0.80}, cfg)
+    assert should is False and "committed baseline" in reason
+    assert registry.evaluate_promotion({"roc_auc": 0.85}, cfg)[0] is True

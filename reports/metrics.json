@@ -2,45 +2,215 @@
   "model": "logistic_regression",
   "tuned": true,
   "calibrated": true,
+  "data_source": "real",
+  "data_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
   "n_test": 1409,
-  "churn_rate": 0.2122,
-  "roc_auc": 0.8144,
-  "pr_auc": 0.5376,
-  "brier": 0.1291,
-  "threshold": 0.2,
-  "precision": 0.4104,
-  "recall": 0.7893,
-  "f1": 0.54,
-  "cost_at_threshold": 654.0,
-  "cost_at_0.5": 1047.0,
+  "churn_rate": 0.2654,
+  "roc_auc": 0.8402,
+  "roc_auc_ci95": [
+    0.8168,
+    0.8619
+  ],
+  "pr_auc": 0.6253,
+  "pr_auc_ci95": [
+    0.5714,
+    0.6761
+  ],
+  "brier": 0.1389,
+  "brier_base_rate": 0.195,
+  "threshold": 0.16,
+  "threshold_source": "out-of-fold predictions on the training split",
+  "precision": 0.4462,
+  "recall": 0.9091,
+  "f1": 0.5986,
+  "flagged_rate": 0.5408,
+  "cost_at_threshold": 592.0,
+  "cost_at_0.5": 1014.0,
+  "cost_reduction_vs_0.5": 0.4162,
   "cv_roc_auc": {
-    "logistic_regression": 0.8086,
-    "random_forest": 0.7947,
-    "gradient_boosting": 0.7967
+    "logistic_regression": 0.8457,
+    "random_forest": 0.848,
+    "gradient_boosting": 0.8479
   },
   "best_params": {
-    "clf__C": 0.07068974950624607
+    "clf__C": 21.368329072358772
+  },
+  "segments": {
+    "Contract": [
+      {
+        "segment": "Month-to-month",
+        "n": 773,
+        "churn_rate": 0.4256,
+        "roc_auc": 0.7388,
+        "flagged_rate": 0.8784,
+        "precision": 0.4713,
+        "recall": 0.9726
+      },
+      {
+        "segment": "Two year",
+        "n": 336,
+        "churn_rate": 0.0268,
+        "roc_auc": 0.7681,
+        "flagged_rate": 0.006,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      {
+        "segment": "One year",
+        "n": 300,
+        "churn_rate": 0.12,
+        "roc_auc": 0.7428,
+        "flagged_rate": 0.27,
+        "precision": 0.2469,
+        "recall": 0.5556
+      }
+    ],
+    "InternetService": [
+      {
+        "segment": "Fiber optic",
+        "n": 613,
+        "churn_rate": 0.4111,
+        "roc_auc": 0.778,
+        "flagged_rate": 0.7879,
+        "precision": 0.4948,
+        "recall": 0.9484
+      },
+      {
+        "segment": "DSL",
+        "n": 484,
+        "churn_rate": 0.2004,
+        "roc_auc": 0.813,
+        "flagged_rate": 0.4442,
+        "precision": 0.3814,
+        "recall": 0.8454
+      },
+      {
+        "segment": "No",
+        "n": 312,
+        "churn_rate": 0.0801,
+        "roc_auc": 0.8914,
+        "flagged_rate": 0.2051,
+        "precision": 0.2969,
+        "recall": 0.76
+      }
+    ],
+    "PaymentMethod": [
+      {
+        "segment": "Electronic check",
+        "n": 474,
+        "churn_rate": 0.4346,
+        "roc_auc": 0.7713,
+        "flagged_rate": 0.8312,
+        "precision": 0.5051,
+        "recall": 0.966
+      },
+      {
+        "segment": "Mailed check",
+        "n": 326,
+        "churn_rate": 0.184,
+        "roc_auc": 0.8112,
+        "flagged_rate": 0.4785,
+        "precision": 0.3462,
+        "recall": 0.9
+      },
+      {
+        "segment": "Credit card (automatic)",
+        "n": 309,
+        "churn_rate": 0.165,
+        "roc_auc": 0.8533,
+        "flagged_rate": 0.3495,
+        "precision": 0.3796,
+        "recall": 0.8039
+      },
+      {
+        "segment": "Bank transfer (automatic)",
+        "n": 300,
+        "churn_rate": 0.19,
+        "roc_auc": 0.8671,
+        "flagged_rate": 0.3467,
+        "precision": 0.4423,
+        "recall": 0.807
+      }
+    ],
+    "SeniorCitizen": [
+      {
+        "segment": "No",
+        "n": 1187,
+        "churn_rate": 0.2325,
+        "roc_auc": 0.8415,
+        "flagged_rate": 0.492,
+        "precision": 0.4178,
+        "recall": 0.8841
+      },
+      {
+        "segment": "Yes",
+        "n": 222,
+        "churn_rate": 0.4414,
+        "roc_auc": 0.774,
+        "flagged_rate": 0.8018,
+        "precision": 0.5393,
+        "recall": 0.9796
+      }
+    ],
+    "tenure_band": [
+      {
+        "segment": "49+ mo",
+        "n": 450,
+        "churn_rate": 0.0778,
+        "roc_auc": 0.8296,
+        "flagged_rate": 0.1733,
+        "precision": 0.2692,
+        "recall": 0.6
+      },
+      {
+        "segment": "0-12 mo",
+        "n": 449,
+        "churn_rate": 0.4788,
+        "roc_auc": 0.7444,
+        "flagged_rate": 0.8775,
+        "precision": 0.5305,
+        "recall": 0.9721
+      },
+      {
+        "segment": "25-48 mo",
+        "n": 304,
+        "churn_rate": 0.2105,
+        "roc_auc": 0.7951,
+        "flagged_rate": 0.4638,
+        "precision": 0.3617,
+        "recall": 0.7969
+      },
+      {
+        "segment": "13-24 mo",
+        "n": 206,
+        "churn_rate": 0.2913,
+        "roc_auc": 0.813,
+        "flagged_rate": 0.7233,
+        "precision": 0.396,
+        "recall": 0.9833
+      }
+    ]
   },
   "top_drivers": [
     {
       "feature": "tenure",
-      "importance": 0.1814
-    },
-    {
-      "feature": "Contract",
-      "importance": 0.0565
-    },
-    {
-      "feature": "PaymentMethod",
-      "importance": 0.014
+      "importance": 0.1615
     },
     {
       "feature": "MonthlyCharges",
-      "importance": 0.0109
+      "importance": 0.1422
     },
     {
       "feature": "InternetService",
-      "importance": 0.0077
+      "importance": 0.137
+    },
+    {
+      "feature": "Contract",
+      "importance": 0.0394
+    },
+    {
+      "feature": "num_addon_services",
+      "importance": 0.0293
     }
   ]
 }

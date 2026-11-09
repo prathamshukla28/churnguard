@@ -6,16 +6,23 @@ Kept out of ``api.py`` so the service wiring stays readable. Provides:
   a Prometheus text exposition and percentile latencies (p50/p95/p99).
 * :func:`configure_logging` — one-line structured **JSON** logs with a request id,
   the shape an aggregator (Loki, CloudWatch, Datadog) can parse directly.
-* :class:`RateLimiter` — a dependency-free fixed-window per-client limiter.
-* :func:`require_api_key` — optional ``X-API-Key`` auth, enabled by setting the
-  ``CHURNGUARD_API_KEY`` environment variable (open when it is unset, so local and
-  demo use needs no secret).
+* :class:`RateLimiter` — a dependency-free fixed-window per-client limiter whose
+  memory is bounded (stale windows are evicted; a hard cap on tracked clients).
+* :func:`client_ip` — the rate-limit key; honours ``X-Forwarded-For`` **only** when
+  trusted-proxy mode is explicitly enabled, otherwise any client could spoof it.
+* :func:`api_key_required` / :func:`api_key_valid` — optional ``X-API-Key`` auth,
+  enabled by setting ``CHURNGUARD_API_KEY`` (open when unset, so local and demo
+  use needs no secret), compared in constant time.
+* :func:`route_label` / :func:`method_label` — bounded Prometheus label values
+  (the matched route *template*, never the raw path), so a scan of random URLs
+  cannot create unbounded time series.
 
 All of it is standard-library only; no agent or exporter to deploy.
 """
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -23,6 +30,8 @@ import sys
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable, Mapping
+from typing import Any
 
 _logger = logging.getLogger("churnguard")
 
@@ -150,28 +159,107 @@ class MetricsRegistry:
 
 
 class RateLimiter:
-    """Fixed-window per-key rate limiter (requests per 60s). ``per_minute=0`` = off."""
+    """Fixed-window per-key rate limiter (requests per 60s). ``per_minute=0`` = off.
 
-    def __init__(self, per_minute: int) -> None:
+    Memory is bounded two ways: entries from finished windows are swept whenever
+    a new window starts, and at most ``max_keys`` clients are tracked at once
+    (the oldest entry is dropped to admit a new one).
+    """
+
+    def __init__(
+        self,
+        per_minute: int,
+        max_keys: int = 10_000,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
         self.per_minute = int(per_minute)
+        self.max_keys = max(1, int(max_keys))
+        self._clock = clock
         self._lock = threading.Lock()
         self._windows: dict[str, tuple[int, int]] = {}  # key -> (window_start, count)
+        self._current_window: int | None = None
+
+    def __len__(self) -> int:
+        return len(self._windows)
 
     def allow(self, key: str) -> bool:
         if self.per_minute <= 0:
             return True
-        now = int(time.time())
+        now = int(self._clock())
         window = now - (now % 60)
         with self._lock:
+            if window != self._current_window:
+                # New window: every older entry is dead weight.
+                self._windows = {k: v for k, v in self._windows.items() if v[0] == window}
+                self._current_window = window
             start, count = self._windows.get(key, (window, 0))
             if start != window:
                 start, count = window, 0
+            if key not in self._windows and len(self._windows) >= self.max_keys:
+                self._windows.pop(next(iter(self._windows)))
             count += 1
             self._windows[key] = (start, count)
             return count <= self.per_minute
+
+
+def client_ip(
+    peer: str | None,
+    headers: Mapping[str, str],
+    trust_forwarded_for: bool = False,
+    trusted_hops: int = 1,
+) -> str:
+    """The client address to key rate limits (and logs) on.
+
+    Without trusted-proxy mode this is always the TCP peer: ``X-Forwarded-For`` is
+    attacker-controlled. With it, each trusted proxy appends the address it saw,
+    so the real client is ``trusted_hops`` entries from the right; anything to
+    the left of that was supplied by the client and is ignored.
+    """
+    fallback = peer or "unknown"
+    if not trust_forwarded_for:
+        return fallback
+    raw = headers.get("x-forwarded-for", "")
+    hops = [h.strip() for h in raw.split(",") if h.strip()]
+    if not hops:
+        return fallback
+    return hops[-min(max(1, trusted_hops), len(hops))]
 
 
 def api_key_required() -> str | None:
     """The configured API key, or ``None`` when auth is disabled."""
     key = os.environ.get("CHURNGUARD_API_KEY", "").strip()
     return key or None
+
+
+def api_key_valid(provided: str | None, required: str) -> bool:
+    """Constant-time comparison so response timing does not leak the key."""
+    if provided is None:
+        return False
+    return hmac.compare_digest(provided.encode("utf-8"), required.encode("utf-8"))
+
+
+def env_flag(name: str, default: bool) -> bool:
+    """Read a boolean environment override (1/true/yes/on), else ``default``."""
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return bool(default)
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+_KNOWN_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
+
+
+def method_label(method: str) -> str:
+    """Bound the ``method`` label: arbitrary verbs collapse to ``OTHER``."""
+    upper = method.upper()
+    return upper if upper in _KNOWN_METHODS else "OTHER"
+
+
+def route_label(scope: Mapping[str, Any]) -> str:
+    """The matched route template (e.g. ``/predict``), or ``unmatched``.
+
+    Never the raw request path, which a client controls (``/a1``, ``/a2``, ...).
+    """
+    route = scope.get("route")
+    path = getattr(route, "path", None)
+    return path if isinstance(path, str) and path else "unmatched"
