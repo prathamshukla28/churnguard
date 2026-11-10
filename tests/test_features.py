@@ -86,3 +86,13 @@ def test_partial_record_leaves_unknowns_missing():
     out = engineer_features(pd.DataFrame([{"Contract": "Month-to-month"}]))
     assert pd.isna(out.loc[0, "charges_per_tenure"])
     assert pd.isna(out.loc[0, "num_addon_services"])
+
+
+def test_partial_record_addons_stay_missing_when_batched_with_full_record():
+    # Regression: a row with no add-on fields used to count as 0 add-ons (not
+    # imputed) whenever another row in the same batch sent add-on fields.
+    full = {"tenure": 5, "TotalCharges": 100.0, "OnlineSecurity": "Yes", "TechSupport": "Yes"}
+    partial = {"Contract": "Month-to-month"}
+    out = engineer_features(pd.DataFrame([full, partial]))
+    assert out.loc[0, "num_addon_services"] == 2
+    assert pd.isna(out.loc[1, "num_addon_services"])

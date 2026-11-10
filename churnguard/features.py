@@ -96,10 +96,15 @@ def engineer_features(frame: pd.DataFrame) -> pd.DataFrame:
 
     # How many optional add-on services the customer actually subscribes to.
     present = [col for col in _ADDON_COLUMNS if col in out.columns]
-    # Unknown (NaN -> imputed) when the caller sent none of the add-on columns.
-    out["num_addon_services"] = (
-        sum((out[col] == "Yes").astype(int) for col in present) if present else np.nan
-    )
+    # Unknown (NaN -> imputed) for any row that sent none of the add-on columns,
+    # even when other rows in the same batch did (a batch must not change a score).
+    if present:
+        addons = out[present]
+        count = (addons == "Yes").sum(axis=1)
+        unknown = addons.isna().all(axis=1)
+        out["num_addon_services"] = count.mask(unknown) if unknown.any() else count
+    else:
+        out["num_addon_services"] = np.nan
 
     # Average spend per month of tenure; a proxy for "expensive but new".
     # Guard tenure == 0 to avoid division by zero. If either input is unknown the
