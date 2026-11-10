@@ -45,3 +45,4 @@ docs/ChurnGuard.pdf
 docs/PROJECT_AND_INTERVIEW.md
 scripts/make_docs_pdf.py
 docs/adr/0001-record-architecture-decisions.md
+mlflow.db

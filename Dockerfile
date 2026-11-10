@@ -40,5 +40,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
     CMD python -c "import os,urllib.request,sys; p=os.environ.get('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://localhost:{p}/health').status==200 else 1)"
 
-# Shell form so ${PORT} is expanded at runtime.
-CMD uvicorn churnguard.api:app --host 0.0.0.0 --port ${PORT:-8000}
+# Shell form so ${PORT} is expanded at runtime; `exec` makes uvicorn PID 1 so it
+# receives SIGTERM from `docker stop` and shuts down gracefully.
+CMD exec uvicorn churnguard.api:app --host 0.0.0.0 --port ${PORT:-8000}

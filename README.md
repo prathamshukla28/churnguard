@@ -202,7 +202,7 @@ scan of random URLs cannot create unbounded time series.
 
 ```bash
 make test        # 108 tests (synthetic data, offline, isolated temp dirs)
-make coverage    # fails under 90% (currently ~94%)
+make coverage    # fails under 90% (currently ~95%)
 make lint        # ruff check + ruff format --check
 make typecheck   # mypy
 make regression  # model gate vs. the committed baseline
