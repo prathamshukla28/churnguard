@@ -10,6 +10,8 @@ evaluation → a served REST API → drift monitoring → model lifecycle**, tra
 evaluated on the public **IBM Telco Customer Churn** dataset.
 
 > **Live demo:** _not deployed yet_ — see [Deploy](#deploy).
+>
+> [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/prathamshukla28/churnguard)
 
 ---
 
@@ -233,8 +235,12 @@ mlflow, pre-commit) never enters the image.
 ## Deploy
 
 `render.yaml` is a Render blueprint (free Docker web service, `/health` check,
-`CHURNGUARD_TRUST_PROXY=1`). On render.com: **New → Blueprint → this repo**. Once
-it is live, put the URL in the *Live demo* line at the top of this README.
+`CHURNGUARD_TRUST_PROXY=1`). Click **Deploy to Render** above, or on render.com:
+**New → Blueprint → this repo**. The image downloads and checksum-verifies the
+Telco data and trains its own model during the build, so no artifacts need to be
+committed. The free plan sleeps when idle, so the first request after a pause
+takes ~30–60 s. Once it is live, put the URL in the *Live demo* line at the top
+of this README.
 
 ---
 
