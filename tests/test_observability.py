@@ -129,3 +129,38 @@ def test_metrics_registry_stats_and_prometheus():
     assert 'path="/predict"' in text
     assert 'churnguard_predictions_total{band="high"} 1' in text
     assert "churnguard_uptime_seconds" in text
+
+
+def _prom_value(text: str, name: str) -> float:
+    for line in text.splitlines():
+        if line.startswith(name + " "):
+            return float(line.split()[1])
+    raise AssertionError(f"{name} missing from exposition")
+
+
+def test_latency_count_and_sum_stay_cumulative_past_the_window():
+    # Regression: _count came from the bounded percentile window and froze at
+    # 2,000 while _sum kept growing, so rate(_sum)/rate(_count) drifted upward.
+    m = MetricsRegistry()  # default window: 2,000 samples
+    n = 2_500
+    for _ in range(n):
+        m.record_request("POST", "/predict", 200, 0.01)
+
+    text = m.prometheus()
+    assert _prom_value(text, "churnguard_request_latency_seconds_count") == n
+    assert _prom_value(text, "churnguard_request_latency_seconds_sum") == round(n * 0.01, 6)
+    assert m.stats_snapshot()["requests_total"] == n
+
+
+def test_latency_quantiles_use_only_the_recent_window():
+    m = MetricsRegistry(max_latencies=10)
+    for _ in range(10):
+        m.record_request("GET", "/health", 200, 1.0)
+    for _ in range(10):  # pushes every 1.0 s sample out of the window
+        m.record_request("GET", "/health", 200, 0.002)
+
+    text = m.prometheus()
+    assert _prom_value(text, "churnguard_request_latency_seconds_count") == 20
+    assert _prom_value(text, "churnguard_request_latency_seconds_sum") == round(10.02, 6)
+    assert 'churnguard_request_latency_seconds{quantile="0.99"} 0.002000' in text
+    assert m.stats_snapshot()["latency_ms"]["p99"] == 2.0

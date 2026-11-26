@@ -3,7 +3,9 @@
 Kept out of ``api.py`` so the service wiring stays readable. Provides:
 
 * :class:`MetricsRegistry` — thread-safe request/latency/prediction counters with
-  a Prometheus text exposition and percentile latencies (p50/p95/p99).
+  a Prometheus text exposition and percentile latencies (p50/p95/p99). Counts
+  and sums are cumulative since process start; only the percentiles come from a
+  bounded window of the most recent requests.
 * :func:`configure_logging` — one-line structured **JSON** logs with a request id,
   the shape an aggregator (Loki, CloudWatch, Datadog) can parse directly.
 * :class:`RateLimiter` — a dependency-free fixed-window per-client limiter whose
@@ -73,12 +75,19 @@ def _percentile(sorted_vals: list[float], q: float) -> float:
 
 
 class MetricsRegistry:
-    """Thread-safe in-memory metrics for the serving process."""
+    """Thread-safe in-memory metrics for the serving process.
+
+    ``_latency_count`` and ``_latency_sum`` are cumulative since process start, as
+    Prometheus requires for a summary's ``_count`` / ``_sum``. The bounded
+    ``_latencies`` window (the last ``max_latencies`` requests) feeds only the
+    p50/p95/p99 quantiles, keeping memory constant.
+    """
 
     def __init__(self, max_latencies: int = 2000) -> None:
         self._lock = threading.Lock()
         self._started = time.monotonic()
         self._requests: dict[tuple[str, str, int], int] = defaultdict(int)
+        self._latency_count = 0
         self._latency_sum = 0.0
         self._latencies: deque[float] = deque(maxlen=max_latencies)
         self.predictions_served = 0
@@ -88,6 +97,7 @@ class MetricsRegistry:
     def record_request(self, method: str, path: str, status: int, latency_s: float) -> None:
         with self._lock:
             self._requests[(method, path, status)] += 1
+            self._latency_count += 1
             self._latency_sum += latency_s
             self._latencies.append(latency_s)
 
@@ -134,10 +144,11 @@ class MetricsRegistry:
                     f'status="{status}"}} {count}'
                 )
             lines += [
-                "# HELP churnguard_request_latency_seconds Request latency.",
+                "# HELP churnguard_request_latency_seconds Request latency "
+                f"(quantiles over the last {self._latencies.maxlen} requests).",
                 "# TYPE churnguard_request_latency_seconds summary",
                 f"churnguard_request_latency_seconds_sum {self._latency_sum:.6f}",
-                f"churnguard_request_latency_seconds_count {len(self._latencies)}",
+                f"churnguard_request_latency_seconds_count {self._latency_count}",
             ]
             for q in (0.5, 0.95, 0.99):
                 lines.append(
