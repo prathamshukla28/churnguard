@@ -39,8 +39,8 @@ model:
   #   selection_rule: best               -> highest mean CV score wins
   #   selection_rule: one_standard_error -> the SIMPLEST candidate whose mean is
   #     within one standard error of the best (Breiman's 1-SE rule). On Telco the
-  #     three candidates differ by ~0.003 AUC, far inside fold noise, and the
-  #     calibrated forest is ~15x slower to serve.
+  #     forest leads by ~0.002 AUC, inside one standard error (~0.005), and the
+  #     calibrated forest is ~5.5x slower to serve a single row.
   selection_rule: one_standard_error
   candidates:
     - logistic_regression

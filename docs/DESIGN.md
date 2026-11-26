@@ -26,7 +26,7 @@ actuator: a human (or a downstream campaign tool) decides what to do with a scor
 | Decision quality | Threshold minimises expected business cost, not accuracy |
 | Operability | `/health`, `/stats`, `/metrics/prometheus`, drift monitoring, registry |
 | Reproducibility | One seed end-to-end; `requirements.lock`; `make all` |
-| Latency | p99 < ~25 ms single-row in-process (see `reports/loadtest.md`) |
+| Latency | Measured, not guaranteed: p50 ≈ 24 ms, p99 ≈ 29 ms single-row, in-process, sequential (`reports/loadtest.md`; Apple M1 Pro laptop at load average ≈7; p99 27–36 ms over four runs, 138 ms in an earlier run at load average 10–15) |
 
 ## 2. Architecture
 
@@ -71,8 +71,8 @@ actuator: a human (or a downstream campaign tool) decides what to do with a scor
 ## 3. Data flow
 
 **Training (offline).** `data → engineer_features → train/test split → CV compare
-→ tune winner → calibrate → threshold from out-of-fold training predictions →
-ModelBundle` (with the data SHA-256 and the held-out row ids). Everything up to
+→ one-standard-error selection → tune → calibrate → threshold from out-of-fold
+training predictions → ModelBundle` (with the data SHA-256 and the held-out row ids). Everything up to
 here sees the training split only.
 
 **Evaluation (offline).** Loads the saved bundle, rebuilds its exact test split
@@ -114,6 +114,11 @@ Full rationale in [`docs/adr/`](adr/):
   (`reports/baseline_metrics.json`, written only by `make promote-baseline`).
 
 ### SLOs (illustrative)
+These are aspirational targets for a production deployment. Nothing is deployed or
+measured against them yet. The in-process benchmark above meets the latency target
+on a moderately loaded laptop (p99 ≈ 29 ms) but missed it under heavy host load
+(p99 138 ms), and it excludes network and server overhead.
+
 | SLO | Target |
 | --- | --- |
 | Availability | 99.5% monthly |

@@ -2,8 +2,10 @@
 
 Pipeline:
 1. Build ``Pipeline`` = preprocessing + classifier for each candidate estimator.
-2. Score them with stratified cross-validated ROC-AUC and pick the winner.
-3. Optionally run a randomized hyper-parameter search on the winner.
+2. Score them with stratified cross-validated ROC-AUC and select one: the best
+   mean, or (``selection_rule: one_standard_error``) the simplest candidate within
+   one standard error of the best.
+3. Optionally run a randomized hyper-parameter search on the selected model.
 4. Optionally wrap it in ``CalibratedClassifierCV`` so predicted probabilities
    are honest (a model that says "0.7" is right ~70% of the time).
 5. Choose the cost-minimising decision threshold on **out-of-fold** predictions

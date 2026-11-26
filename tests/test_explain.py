@@ -67,7 +67,7 @@ def test_positive_class_selection_handles_both_layouts_and_two_rows():
 
 
 def test_tree_model_explanations(small_cfg):
-    """The real-data winner is a random forest: exercise the TreeExplainer path."""
+    """A random forest (chosen under ``selection_rule: best``) uses TreeExplainer."""
     import copy
 
     from churnguard.config import Config

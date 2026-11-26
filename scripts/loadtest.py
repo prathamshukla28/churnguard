@@ -14,6 +14,8 @@ instance — the numbers here are a reproducible lower bound on per-request cost
 from __future__ import annotations
 
 import argparse
+import os
+import platform
 import statistics
 import sys
 import time
@@ -43,6 +45,19 @@ def _pct(values: list[float], q: float) -> float:
     return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
 
 
+def _host() -> str:
+    """The machine and its load, so a reader can judge the numbers."""
+    try:
+        load = "{:.1f} / {:.1f} / {:.1f}".format(*os.getloadavg())
+    except (AttributeError, OSError):  # not available on every platform
+        load = "unavailable"
+    return (
+        f"{platform.system()} {platform.release()} ({platform.machine()}), "
+        f"{os.cpu_count()} logical CPUs, Python {platform.python_version()}; "
+        f"load average (1/5/15 min) at start: {load}"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Benchmark the serving path.")
     parser.add_argument("--requests", type=int, default=500)
@@ -60,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("churnguard").setLevel(logging.WARNING)
     api.limiter = RateLimiter(0)
 
+    host = _host()
     client = TestClient(app)
     payload = {"customers": [_CUSTOMER] * args.batch, "explain": args.explain}
     client.post("/predict", json=payload)  # warm up (model load)
@@ -76,7 +92,8 @@ def main(argv: list[str] | None = None) -> int:
     rps = args.requests / wall
     report = f"""# ChurnGuard serving benchmark
 
-In-process benchmark via Starlette TestClient (no network). One machine.
+In-process benchmark via Starlette TestClient (no network), sequential requests,
+one machine: {host}.
 
 | Setting | Value |
 | --- | --- |

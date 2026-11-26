@@ -21,8 +21,9 @@ test split and reported the saving on that same split, which overstated it.
 
 ## Consequences
 - The operating point reflects the real cost trade-off, not a default.
-- On the real Telco data the OOF-chosen threshold is 0.19; on the untouched test
-  split it cuts expected cost ~35% vs. 0.5 (629 vs. 967) under the assumed 5:1 ratio.
+- On the real Telco data the OOF-chosen threshold is 0.16; on the untouched test
+  split it cuts expected cost ~42% vs. 0.5 (592 vs. 1,014) under the assumed 5:1
+  ratio (`reports/metrics.json`).
 - The threshold is only as good as the cost ratio; it must be re-tuned if the
   business economics change (noted in the model card and the runbook).
 - Precision/recall are reported *at this threshold*, not at 0.5, so headline numbers

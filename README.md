@@ -32,13 +32,16 @@ the training split only; the test split (n = 1,409) is scored once.**
 | F1 @ 0.16 | 0.60 | |
 | Customers flagged @ 0.16 | 54% | |
 
-- **Model:** logistic regression (C≈21), isotonic-calibrated. Cross-validated
-  ROC-AUC on the training split: random forest 0.848, gradient boosting 0.848,
-  logistic regression 0.846. The gap is far smaller than the fold-to-fold noise,
-  so the **one-standard-error rule** picks the simplest model. It has exact SHAP
-  values and predicts about 15× faster than the calibrated forest (≈48 ms vs.
-  ≈740 ms per single-row `predict_proba` on the same loaded laptop). (A tuned forest
-  scored 0.844 on the same test split, inside the interval above.)
+- **Model:** logistic regression (C≈21), isotonic-calibrated. It did **not** have
+  the best raw score: untuned 5-fold CV ROC-AUC on the training split is random
+  forest 0.848, gradient boosting 0.848, logistic regression 0.846. The forest
+  leads by 0.002, less than one standard error of its fold scores (0.005), so the
+  **one-standard-error rule** picks the simplest model
+  ([ADR-0003](docs/adr/0003-model-selection-and-tuning.md)). It has exact SHAP
+  values and serves 5.5–5.7× faster than the tuned, calibrated forest: median
+  ≈18 ms vs. ≈100 ms per single-row `predict_proba` (300 interleaved calls each,
+  same process, four runs on an Apple M1 Pro laptop at load average 6–12). (The
+  tuned forest scored 0.844 on the same test split, inside the interval above.)
 - **Threshold 0.16**, chosen to minimise expected cost with an **assumed** 5:1
   cost of a missed churner vs. a wasted offer, on **out-of-fold** predictions over
   the training split. On the untouched test split it costs 592 vs. 1,014 at the
@@ -146,7 +149,8 @@ make all              # data → train → evaluate → regression gate → lint
 make serve            # http://localhost:8000  (demo page) · /docs (OpenAPI)
 ```
 
-Score a customer and ask *why* (a real-looking full record):
+Score a customer and ask *why*. This is customer `2034-GDRCN` from the
+**held-out test split** (the model never trained on it; it did churn):
 
 ```bash
 curl -s -X POST localhost:8000/predict -H "Content-Type: application/json" -d '{
@@ -154,23 +158,28 @@ curl -s -X POST localhost:8000/predict -H "Content-Type: application/json" -d '{
   "customers": [{"gender":"Female","SeniorCitizen":0,"Partner":"No","Dependents":"No",
     "tenure":2,"PhoneService":"Yes","MultipleLines":"No","InternetService":"Fiber optic",
     "OnlineSecurity":"No","OnlineBackup":"No","DeviceProtection":"No","TechSupport":"No",
-    "StreamingTV":"No","StreamingMovies":"No","Contract":"Month-to-month",
+    "StreamingTV":"Yes","StreamingMovies":"Yes","Contract":"Month-to-month",
     "PaperlessBilling":"Yes","PaymentMethod":"Electronic check",
-    "MonthlyCharges":70.7,"TotalCharges":151.65}]}'
+    "MonthlyCharges":90.4,"TotalCharges":168.2}]}'
 ```
+
+The response (line breaks added; values exactly as returned):
 
 ```json
-{"predictions":[{"churn_probability":0.7397,"will_churn":true,"risk_band":"high",
-  "reasons":[{"feature":"InternetService","value":"Fiber optic","impact":1.41,"direction":"increases risk"},
-             {"feature":"tenure","value":2.0,"impact":1.37,"direction":"increases risk"},
-             {"feature":"num_addon_services","value":0,"impact":-0.74,"direction":"decreases risk"}]}],
+{"predictions":[{"churn_probability":0.8196,"will_churn":true,"risk_band":"high",
+  "reasons":[{"feature":"MonthlyCharges","value":90.4,"impact":-2.2108,"direction":"decreases risk"},
+             {"feature":"InternetService","value":"Fiber optic","impact":1.4126,"direction":"increases risk"},
+             {"feature":"tenure","value":2.0,"impact":1.3657,"direction":"increases risk"}]}],
  "threshold":0.16,
  "explanation_basis":{"explained_model":"uncalibrated base estimator (logistic_regression)",
-   "impact_units":"log-odds","note":"Reasons explain the uncalibrated base model; ..."}}
+   "impact_units":"log-odds",
+   "note":"Reasons explain the uncalibrated base model; churn_probability comes from the calibrated model. Directions and ranking are comparable, but impacts do not sum to churn_probability."}}
 ```
 
-(Among the 313 real customers with fiber, a month-to-month contract, electronic
-check payment and ≤3 months of tenure, 79% churned.)
+(Among the 313 customers in the full dataset with fiber, a month-to-month
+contract, electronic check payment and ≤3 months of tenure, 79% churned. The
+`MonthlyCharges` "decreases risk" reason is the correlated-pricing artefact
+described under *Where it fails*.)
 
 - **Partial records are fine.** Omitted fields are imputed by the fitted pipeline
   (median / most frequent); nothing silently defaults to 0.
@@ -201,7 +210,7 @@ scan of random URLs cannot create unbounded time series.
 ## Testing & quality
 
 ```bash
-make test        # 108 tests (synthetic data, offline, isolated temp dirs)
+make test        # 110 tests (synthetic data, offline, isolated temp dirs)
 make coverage    # fails under 90% (currently ~95%)
 make lint        # ruff check + ruff format --check
 make typecheck   # mypy
@@ -259,9 +268,12 @@ decision records in [`docs/adr/`](docs/adr/).
   the committed baseline on a fresh checkout or CI runner. The monthly workflow
   therefore does nothing until the data source is refreshed.
 - **Move the quality floor:** `make promote-baseline`, review, commit.
-- **Benchmark:** `make loadtest` writes `reports/loadtest.md`. The committed run
-  was taken on a heavily loaded laptop (load average 10–15); re-run it on a quiet
-  machine before quoting latency.
+- **Benchmark:** `make loadtest` writes `reports/loadtest.md` (500 sequential
+  single-customer requests through the app in-process, no network). The committed
+  run, on an Apple M1 Pro laptop (10 CPUs) at load average ≈7: 42 req/s, p50
+  23.7 ms, p99 28.7 ms; four runs that day gave p99 27–36 ms. An earlier run at
+  load average 10–15 gave p99 138 ms, so latency depends heavily on host load.
+  Network, TLS and real concurrency are not included.
 
 ## Project layout
 
